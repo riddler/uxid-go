@@ -22,7 +22,8 @@ Many of the concepts of Stripe IDs have been used in this library.
 #### Generating UXIDs via the CLI
 
 ```bash
-go run cli/main.go
+go run cli/main.go --prefix=cus --size=small # cus_01ER59H9BVY1R0
+go run cli/main.go --prefix=txn --size=xl    # txn_01ER59HZ556GREFZ57T1RNYV21
 ```
 
 ## Contributing
