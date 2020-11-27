@@ -1,4 +1,4 @@
-module github.com/riddler/uxid/v1
+module github.com/riddler/uxid-go/v1
 
 go 1.14
 

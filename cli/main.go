@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/riddler/uxid/v1"
+	"github.com/riddler/uxid-go/v1"
 	getopt "github.com/pborman/getopt/v2"
 )
 
