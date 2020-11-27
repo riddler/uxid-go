@@ -8,9 +8,9 @@ import (
 
 const CrockfordEncoding string = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-func Generate(prefix string, rand_size int) (id_str string, err error) {
+func Generate(prefix string, size string) (id_str string, err error) {
 	time_string := EncodeTime(time.Now().UTC())
-	rand_string := EncodeRand(rand_size)
+	rand_string := EncodeRand(size)
 
 	if "" == prefix {
 		return time_string + rand_string, nil
@@ -48,33 +48,31 @@ func EncodeTime(t time.Time) string {
 	return string(tstring[:])
 }
 
-func EncodeRand(rand_size int) string {
-	if rand_size <= 0 {
+func EncodeRand(size string) string {
+	switch size {
+	case "0", "xs", "xsmall":
 		return ""
-	}
-
-	switch rand_size {
-	case 1:
+	case "1":
 		return EncodeRand1()
-	case 2:
+	case "2", "s", "small":
 		return EncodeRand2()
-	case 3:
+	case "3":
 		return EncodeRand3()
-	case 4:
+	case "4":
 		return EncodeRand4()
-	case 5:
+	case "5", "m", "medium":
 		return EncodeRand5()
-	case 6:
+	case "6":
 		return EncodeRand6()
-	case 7:
+	case "7", "l", "large":
 		return EncodeRand7()
-	case 8:
+	case "8":
 		return EncodeRand8()
-	case 9:
+	case "9":
 		return EncodeRand9()
 	}
 
-  return EncodeRand10()
+	return EncodeRand10()
 }
 
 func EncodeRand1() string {

@@ -15,7 +15,7 @@ func main() {
 	fs := getopt.New()
 	var (
 		prefix = fs.StringLong("prefix", 'p', "", "prefix to use for generated UXID")
-		rand_size = fs.IntLong("rand_size", 'r', 10, "number of rand bytes (0-10 inclusive)")
+		size = fs.StringLong("size", 's', "10", "T-Shirt size (xs, s, m, l, xl) or (xsmall, small, medium, large, xlarge)")
 		help = fs.BoolLong("help", 'h', "print this help text")
 	)
 	if err := fs.Getopt(os.Args, nil); err != nil {
@@ -27,11 +27,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	generate(*prefix, int(*rand_size))
+	generate(*prefix, *size)
 }
 
-func generate(prefix string, rand_size int) {
-	id, err := uxid.Generate(prefix, rand_size)
+func generate(prefix string, size string) {
+	id, err := uxid.Generate(prefix, size)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
