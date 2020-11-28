@@ -33,7 +33,7 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/riddle
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+The project is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
 
 <!-- LINKS -->
 [mit_license_url]: http://opensource.org/licenses/MIT
