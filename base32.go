@@ -18,6 +18,27 @@ func writeInteger(out *strings.Builder, value uint64, count int, alphabet string
 	}
 }
 
+// writeLeadingBits writes the first count 5-bit groups of bytes, most
+// significant bit first, with no short group. bytes holds at least
+// count x 5 bits.
+func writeLeadingBits(out *strings.Builder, bytes []byte, count int, alphabet string) {
+	var buffer uint16
+	var bits uint
+	for _, b := range bytes {
+		buffer = buffer<<8 | uint16(b)
+		bits += 8
+		for bits >= 5 {
+			if count == 0 {
+				return
+			}
+			bits -= 5
+			out.WriteByte(alphabet[(buffer>>bits)&31])
+			count--
+		}
+		buffer &= 1<<bits - 1
+	}
+}
+
 // writeBytes writes bytes as 5-bit groups, most significant bit first. When
 // the bit count is not a multiple of 5 the last group is short, and it is
 // written as its raw value rather than shifted or padded: the two bytes

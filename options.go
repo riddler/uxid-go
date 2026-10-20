@@ -7,21 +7,25 @@ import (
 )
 
 // Size is an id's size, which fixes the random field's width, and so the
-// body length, for standard and compact time.
+// body length, for standard and compact time. For a deterministic id
+// (Options.From) it fixes the number of hash characters instead, one less
+// than the standard body length, and the body has the standard length.
 //
-//	Size    Random bytes        Body length
-//	        standard  compact   standard  compact
-//	SizeXS  0         1         10        10
-//	SizeS   2         3         14        13
-//	SizeM   5         6         18        18
-//	SizeL   7         8         22        21
-//	SizeXL  10        10        26        24
+//	Size    Random bytes        Body length         Hash characters
+//	        standard  compact   standard  compact   deterministic
+//	SizeXS  0         1         10        10        9
+//	SizeS   2         3         14        13        13
+//	SizeM   5         6         18        18        17
+//	SizeL   7         8         22        21        21
+//	SizeXL  10        10        26        24        25
 //
 // The zero value is SizeXL, the default size. A Size outside the five
 // constants is refused with ErrUnknownSize.
 type Size int
 
-// The five sizes. SizeXL is listed first so that it is the zero value.
+// The five sizes. SizeXL is listed first so that it is the zero value, so
+// the constants' values are not in size order: compare sizes by name,
+// never with < or >.
 const (
 	// SizeXL is extra large, the default: 10 random bytes.
 	SizeXL Size = iota
@@ -118,9 +122,13 @@ const (
 )
 
 // Options are the inputs of Generate. The zero value asks for the defaults:
-// no prefix, size xl, the size's random width, standard time, lower case,
-// the delimiter "_", the current time and random bytes from
-// crypto/rand.Reader.
+// a time-based id with no prefix, size xl, the size's random width,
+// standard time, lower case, the delimiter "_", the current time and random
+// bytes from crypto/rand.Reader.
+//
+// The two pointer fields, RandSize and From, tell an unset value (nil)
+// from a zero one: new(0) asks for a random field of no bytes and new("")
+// for the deterministic id of the empty string.
 type Options struct {
 	// Prefix is written before the delimiter exactly as given; case never
 	// applies to it, and it may contain the delimiter. The empty string,
@@ -128,22 +136,26 @@ type Options struct {
 	// delimiter.
 	Prefix string
 
-	// Size fixes the random field's width. The zero value is SizeXL.
+	// Size fixes the random field's width, or a deterministic body's hash
+	// characters. The zero value is SizeXL.
 	Size Size
 
-	// RandSize is an explicit random field width in bytes, from 1 to 10,
-	// in place of the size's width. The zero value takes the size's
-	// width. Above 10 is ErrRandSizeTooLarge and below 0 is
-	// ErrNegativeRandSize. A body of a width the size table does not list
-	// has the same layout, but its length is one a decoder refuses.
-	RandSize int
+	// RandSize is an explicit random field width in bytes, from 0 to 10,
+	// in place of the size's width. Nil, the zero value, takes the size's
+	// width; new(0) asks for no random field. Above 10 is
+	// ErrRandSizeTooLarge and below 0 is ErrNegativeRandSize. A body of a
+	// width the size table does not list has the same layout, but its
+	// length is one a decoder refuses. A deterministic id does not read
+	// it.
+	RandSize *int
 
 	// CompactTime asks for compact time: the low 40 bits of the time in 8
 	// characters instead of 48 bits in 10, the freed byte handed to the
 	// random field (except at SizeXL). A time whose first compact
 	// character would be the deterministic marker, from mid-2038 until
 	// the 40-bit window rolls over in 2039, is ErrCompactTimeOutOfRange.
-	// The zero value, false, is standard time.
+	// The zero value, false, is standard time. A deterministic id has no
+	// compact form and does not read it.
 	CompactTime bool
 
 	// Case is the letter case of the body. The zero value is CaseLower.
@@ -159,7 +171,8 @@ type Options struct {
 	// dropped), from the Unix epoch to 2^48 - 1 milliseconds after it;
 	// outside that range is ErrTimeOutOfRange. The zero time.Time is the
 	// current time from the system clock. The Unix epoch itself,
-	// time.UnixMilli(0), is a time like any other, not the zero value.
+	// time.UnixMilli(0), is a time like any other, not the zero value. A
+	// deterministic id has no time and does not read it, nor the clock.
 	Time time.Time
 
 	// Rand fixes the random field's bytes; a non-nil Rand, an empty one
@@ -167,7 +180,9 @@ type Options struct {
 	// count is ErrRandWidthMismatch), and Reader is then not read. It
 	// exists for reproducible ids, such as test vectors, and is never a
 	// source of randomness: an id built from fixed bytes is exactly as
-	// guessable as those bytes. Leave it nil for real ids.
+	// guessable as those bytes. Leave it nil for real ids. A deterministic
+	// id has no random field, so a non-nil Rand with From is
+	// ErrRandWithFrom.
 	Rand []byte
 
 	// Reader is where the random bytes come from when Rand is nil. Nil,
@@ -175,6 +190,18 @@ type Options struct {
 	// random width from it with io.ReadFull, and does not read it when the
 	// width is 0 or Rand is set. A Reader for real ids must be cryptographically
 	// secure: the random field is what makes an id hard to guess. Any
-	// other Reader belongs in tests only.
+	// other Reader belongs in tests only. A deterministic id does not read
+	// it.
 	Reader io.Reader
+
+	// From asks for a deterministic id: non-nil, the body is the marker
+	// and hash characters of SHA-256 over the prefix's bytes, a zero byte,
+	// the bytes of *From (UTF-8, for text), a zero byte and one byte
+	// holding the size's hash-character count, so the same Prefix, *From
+	// and Size always give the same id, and Case gives its spelling. The
+	// empty string is an input like any other. Nil, the zero value, is a
+	// time-based id. A deterministic id is a hash of a known input, so it
+	// is exactly as guessable as that input: never derive one from a
+	// secret and treat it as unguessable.
+	From *string
 }

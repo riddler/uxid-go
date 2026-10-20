@@ -133,7 +133,7 @@ func TestGenerateCorpusRefusals(t *testing.T) {
 			Options{Prefix: "usr", Size: SizeXS, Time: corpusTime, Rand: []byte{1}},
 			ErrRandWidthMismatch},
 		{"invalid/generate-rand-size-11",
-			Options{Prefix: "usr", RandSize: 11, Size: SizeXL, Time: corpusTime},
+			Options{Prefix: "usr", RandSize: new(11), Size: SizeXL, Time: corpusTime},
 			ErrRandSizeTooLarge},
 	}
 	for _, c := range cases {
@@ -249,7 +249,7 @@ func TestGenerateCaseNeverAppliesToThePrefix(t *testing.T) {
 // sabotage: in Generate, ignore opts.RandSize (drop the case that sets
 // width from it); the explicit widths go red.
 func TestGenerateRandSize(t *testing.T) {
-	got, err := Generate(Options{Prefix: "cus", RandSize: 1, Time: corpusTime, Rand: []byte{0xff}})
+	got, err := Generate(Options{Prefix: "cus", RandSize: new(1), Time: corpusTime, Rand: []byte{0xff}})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestGenerateRandSize(t *testing.T) {
 	// An explicit width overrides the size's, and the Reader gives exactly
 	// that many bytes.
 	reader := bytes.NewReader(bytes.Repeat([]byte{0xff}, 12))
-	got, err = Generate(Options{Prefix: "cus", Size: SizeS, RandSize: 10, Time: corpusTime, Reader: reader})
+	got, err = Generate(Options{Prefix: "cus", Size: SizeS, RandSize: new(10), Time: corpusTime, Reader: reader})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -271,10 +271,10 @@ func TestGenerateRandSize(t *testing.T) {
 		t.Fatalf("Generate read %d bytes, want 10", 12-reader.Len())
 	}
 
-	if _, err := Generate(Options{RandSize: -1, Time: corpusTime}); !errors.Is(err, ErrNegativeRandSize) {
+	if _, err := Generate(Options{RandSize: new(-1), Time: corpusTime}); !errors.Is(err, ErrNegativeRandSize) {
 		t.Fatalf("RandSize -1: %v, want ErrNegativeRandSize", err)
 	}
-	if _, err := Generate(Options{RandSize: 11, Rand: make([]byte, 11), Time: corpusTime}); !errors.Is(err, ErrRandSizeTooLarge) {
+	if _, err := Generate(Options{RandSize: new(11), Rand: make([]byte, 11), Time: corpusTime}); !errors.Is(err, ErrRandSizeTooLarge) {
 		t.Fatalf("RandSize 11 with 11 fixed bytes: %v, want ErrRandSizeTooLarge", err)
 	}
 }
@@ -424,5 +424,56 @@ func TestGenerateLengthIsInBytes(t *testing.T) {
 	}
 	if want := len(prefix) + len(delimiter) + 18; len(got) != want {
 		t.Fatalf("len(%q) = %d bytes, want %d", got, len(got), want)
+	}
+}
+
+// A request with two faults is refused for the first in the reference's
+// order: the random width (rand_size_too_large, then rand_width_mismatch)
+// before the compact-time guard. The time is the corpus's guard case,
+// invalid/generate-compact-time-at-guard.
+//
+// sabotage: in Generate, move the compact-time guard above the RandSize
+// checks; both rows go red.
+func TestGenerateRefusesTheWidthBeforeTheCompactGuard(t *testing.T) {
+	guard := time.UnixMilli(2_164_663_517_184)
+	cases := map[error]Options{
+		ErrRandSizeTooLarge:  {Prefix: "usr", Size: SizeS, CompactTime: true, Time: guard, RandSize: new(11)},
+		ErrRandWidthMismatch: {Prefix: "usr", Size: SizeS, CompactTime: true, Time: guard, Rand: []byte{1, 2}},
+	}
+	for want, opts := range cases {
+		opts.Reader = failingReader{t}
+		if _, err := Generate(opts); !errors.Is(err, want) {
+			t.Errorf("Generate: %v, want %v", err, want)
+		}
+	}
+}
+
+// An explicit width of 0 is no random field, in either time form, and
+// differs from an unset RandSize, which takes the size's width.
+//
+// sabotage: in Generate, apply RandSize only when *opts.RandSize > 0; the
+// compact row goes red.
+func TestGenerateExplicitRandSizeZero(t *testing.T) {
+	cases := map[string]Options{
+		"usr_01hf7yat00": {Prefix: "usr", Size: SizeXL, Time: corpusTime, RandSize: new(0)},
+		"usr_hf7yat00":   {Prefix: "usr", Size: SizeXS, CompactTime: true, Time: corpusTime, RandSize: new(0), Rand: []byte{}},
+	}
+	for want, opts := range cases {
+		opts.Reader = failingReader{t}
+		got, err := Generate(opts)
+		if err != nil || got != want {
+			t.Errorf("Generate = %q, %v; want %q", got, err, want)
+		}
+	}
+}
+
+// A Reader that gives no byte at all fails with io.EOF, wrapped.
+//
+// sabotage: in Generate, format the Reader's error with %v in place of
+// %w; this test goes red.
+func TestGenerateReaderAtEOF(t *testing.T) {
+	got, err := Generate(Options{Size: SizeS, Time: corpusTime, Reader: bytes.NewReader(nil)})
+	if !errors.Is(err, io.EOF) || got != "" {
+		t.Fatalf("Generate = %q, %v; want io.EOF", got, err)
 	}
 }
