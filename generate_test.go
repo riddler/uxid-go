@@ -157,16 +157,17 @@ func TestGenerateCorpusRefusals(t *testing.T) {
 // this test goes red.
 func TestSentinelTextsAreTheCorpusNames(t *testing.T) {
 	sentinels := map[error]string{
-		ErrCompactTimeOutOfRange: "compact_time_out_of_range",
-		ErrRandWidthMismatch:     "rand_width_mismatch",
-		ErrRandSizeTooLarge:      "rand_size_too_large",
-		ErrFromWithMonotonic:     "from_with_monotonic",
-		ErrRandWithFrom:          "rand_with_from",
-		ErrRandWithMonotonic:     "rand_with_monotonic",
-		ErrTimeOutOfRange:        "time_out_of_range",
-		ErrNegativeRandSize:      "negative_rand_size",
-		ErrUnknownSize:           "unknown_size",
-		ErrUnknownCase:           "unknown_case",
+		ErrCompactTimeOutOfRange:  "compact_time_out_of_range",
+		ErrRandWidthMismatch:      "rand_width_mismatch",
+		ErrRandSizeTooLarge:       "rand_size_too_large",
+		ErrFromWithMonotonic:      "from_with_monotonic",
+		ErrRandWithFrom:           "rand_with_from",
+		ErrRandWithMonotonic:      "rand_with_monotonic",
+		ErrTimeOutOfRange:         "time_out_of_range",
+		ErrNegativeRandSize:       "negative_rand_size",
+		ErrUnknownSize:            "unknown_size",
+		ErrUnknownCase:            "unknown_case",
+		ErrEmptyRandWithMonotonic: "empty_rand_with_monotonic",
 	}
 	for err, name := range sentinels {
 		if err.Error() != name {

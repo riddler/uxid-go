@@ -37,6 +37,8 @@
       "example_test.go",
       "generate.go",
       "generate_test.go",
+      "monotonic.go",
+      "monotonic_test.go",
       "options.go",
       "options_test.go",
       "version.go",

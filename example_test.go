@@ -1,6 +1,7 @@
 package uxid_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -52,6 +53,59 @@ func ExampleGenerate_deterministic() {
 	}
 	fmt.Println(id)
 	// Output: usr_zcvt7epac0t1ebcsjfyf7cwz25
+}
+
+// A monotonic generator's ids increase strictly, also within one
+// millisecond. The generator is safe for concurrent use, so one may be
+// shared by every goroutine that makes ids of its prefix and size.
+func ExampleMonotonic() {
+	ids, err := uxid.NewMonotonic(uxid.Options{Prefix: "usr", Size: uxid.SizeM})
+	if err != nil {
+		panic(err)
+	}
+	first, err := ids.Next()
+	if err != nil {
+		panic(err)
+	}
+	second, err := ids.Next()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(len(first), first < second)
+	// Output: 22 true
+}
+
+// With a fixed time and a byte source of zeros, the first id seeds the
+// random field and the next, in the same millisecond, steps it. A fixed
+// byte source is for tests only, never for real ids.
+func ExampleMonotonic_NextWith() {
+	ids, err := uxid.NewMonotonic(uxid.Options{
+		Prefix: "usr",
+		Size:   uxid.SizeS,
+		Reader: bytes.NewReader(make([]byte, 3)),
+	})
+	if err != nil {
+		panic(err)
+	}
+	at := time.UnixMilli(1_700_000_000_000)
+	for range 2 {
+		id, err := ids.NextWith(nil, at)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(id)
+	}
+	// Output:
+	// usr_01hf7yat000000
+	// usr_01hf7yat000001
+}
+
+// A monotonic generator refuses a deterministic body and fixed random
+// bytes when it is built.
+func ExampleNewMonotonic_refusal() {
+	_, err := uxid.NewMonotonic(uxid.Options{Prefix: "usr", From: new("alice@example.com")})
+	fmt.Println(errors.Is(err, uxid.ErrFromWithMonotonic), err)
+	// Output: true from_with_monotonic
 }
 
 // Decode reads an id back: its prefix, size, time form, and time. A

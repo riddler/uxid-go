@@ -6,9 +6,8 @@ import "errors"
 // Each error's text is exactly that name, the one the conformance corpus
 // gives the refusal, so err.Error() on a value Generate returns is the
 // corpus name; match them with errors.Is. Generate returns the first
-// three and ErrRandWithFrom. ErrFromWithMonotonic and ErrRandWithMonotonic
-// name the refusals of monotonic generation, which this package does not
-// offer yet; nothing returns them today.
+// three and ErrRandWithFrom; NewMonotonic returns ErrFromWithMonotonic and
+// ErrRandWithMonotonic, and a Monotonic's calls ErrCompactTimeOutOfRange.
 var (
 	// ErrCompactTimeOutOfRange refuses a compact time whose first
 	// character would be the deterministic marker: the low 40 bits of the
@@ -55,4 +54,8 @@ var (
 
 	// ErrUnknownCase refuses a Case outside the two constants.
 	ErrUnknownCase = errors.New("unknown_case")
+
+	// ErrEmptyRandWithMonotonic refuses a monotonic generator whose random
+	// width is 0 bytes (Options.RandSize new(0)): it has no field to step.
+	ErrEmptyRandWithMonotonic = errors.New("empty_rand_with_monotonic")
 )

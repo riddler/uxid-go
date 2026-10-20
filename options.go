@@ -121,7 +121,9 @@ const (
 	CaseUpper
 )
 
-// Options are the inputs of Generate. The zero value asks for the defaults:
+// Options are the inputs of Generate, and of NewMonotonic, which reads them
+// as Generate does (see NewMonotonic for the one default that differs and
+// the fields it refuses). The zero value asks for the defaults:
 // a time-based id with no prefix, size xl, the size's random width,
 // standard time, lower case, the delimiter "_", the current time and random
 // bytes from crypto/rand.Reader.

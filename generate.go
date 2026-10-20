@@ -92,7 +92,7 @@ func Generate(opts Options) (string, error) {
 	if at.IsZero() {
 		at = time.Now()
 	}
-	if at.Before(time.UnixMilli(0)) || !at.Before(time.UnixMilli(maxTime+1)) {
+	if !inTimeRange(at) {
 		return "", ErrTimeOutOfRange
 	}
 	millis := uint64(at.UnixMilli())
