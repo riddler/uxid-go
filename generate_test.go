@@ -2,7 +2,6 @@ package uxid
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"io"
 	"strings"
@@ -12,20 +11,6 @@ import (
 
 // corpusTime is the time most corpus encode cases use, 1700000000000 ms.
 var corpusTime = time.UnixMilli(1_700_000_000_000)
-
-// unhex decodes a corpus rand field. An empty string decodes to an empty,
-// non-nil slice: in the corpus an empty rand is a fixed field of no bytes.
-func unhex(t *testing.T, s string) []byte {
-	t.Helper()
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		t.Fatalf("hex %q: %v", s, err)
-	}
-	if b == nil {
-		b = []byte{}
-	}
-	return b
-}
 
 // failingReader fails the test when Generate reads from it.
 type failingReader struct{ t *testing.T }
@@ -39,119 +24,6 @@ func (r failingReader) Read([]byte) (int, error) {
 type errReader struct{ err error }
 
 func (r errReader) Read([]byte) (int, error) { return 0, r.err }
-
-// Hand-picked cases from the conformance corpus's encode.json (uxid-ex
-// v2.10.0), by their case ids, until the corpus runner vendors the file:
-// every size in both time forms, both cases, the partial-group rule, the
-// time range's ends, the compact guard's last valid time, no prefix, an
-// empty prefix and a prefix holding the delimiter.
-//
-// sabotage: in writeBytes, write the short last group shifted left
-// (alphabet[buffer<<(5-bits)]); the all-ones and every odd-width case go red.
-func TestGenerateCorpusEncodeCases(t *testing.T) {
-	cases := []struct {
-		id       string
-		prefix   string
-		size     Size
-		compact  bool
-		upper    bool
-		millis   int64
-		rand     string
-		expected string
-	}{
-		{"encode/xs-standard-lower", "usr", SizeXS, false, false, 1_700_000_000_000, "", "usr_01hf7yat00"},
-		{"encode/xs-standard-upper", "usr", SizeXS, false, true, 1_700_000_000_000, "", "usr_01HF7YAT00"},
-		{"encode/xs-compact-upper", "usr", SizeXS, true, true, 1_700_000_000_000, "01", "usr_HF7YAT0001"},
-		{"encode/s-standard-lower", "usr", SizeS, false, false, 1_700_000_000_000, "0123", "usr_01hf7yat0004h1"},
-		{"encode/s-compact-lower", "usr", SizeS, true, false, 1_700_000_000_000, "012345", "usr_hf7yat0004hm5"},
-		{"encode/m-standard-upper", "usr", SizeM, false, true, 1_700_000_000_000, "0123456789", "usr_01HF7YAT0004HMASW9"},
-		{"encode/m-compact-lower", "usr", SizeM, true, false, 1_700_000_000_000, "0123456789ab", "usr_hf7yat0004hmasw9n3"},
-		{"encode/l-standard-lower", "usr", SizeL, false, false, 1_700_000_000_000, "0123456789abcd", "usr_01hf7yat0004hmasw9nf61"},
-		{"encode/l-compact-upper", "usr", SizeL, true, true, 1_700_000_000_000, "0123456789abcdef", "usr_HF7YAT0004HMASW9NF6YF"},
-		{"encode/xl-standard-lower", "usr", SizeXL, false, false, 1_700_000_000_000, "0123456789abcdef0123", "usr_01hf7yat0004hmasw9nf6yy093"},
-		{"encode/xl-compact-lower", "usr", SizeXL, true, false, 1_700_000_000_000, "0123456789abcdef0123", "usr_hf7yat0004hmasw9nf6yy093"},
-		{"encode/xs-compact-rand-all-ones", "cus", SizeXS, true, false, 1_700_000_000_000, "ff", "cus_hf7yat00z7"},
-		{"encode/s-standard-rand-all-ones", "cus", SizeS, false, false, 1_700_000_000_000, "ffff", "cus_01hf7yat00zzz1"},
-		{"encode/m-compact-rand-all-ones", "cus", SizeM, true, false, 1_700_000_000_000, "ffffffffffff", "cus_hf7yat00zzzzzzzzz7"},
-		{"encode/l-compact-rand-all-ones", "cus", SizeL, true, false, 1_700_000_000_000, "ffffffffffffffff", "cus_hf7yat00zzzzzzzzzzzzf"},
-		{"encode/xl-standard-rand-all-ones", "cus", SizeXL, false, false, 1_700_000_000_000, "ffffffffffffffffffff", "cus_01hf7yat00zzzzzzzzzzzzzzzz"},
-		{"encode/xs-standard-time-zero", "", SizeXS, false, false, 0, "", "0000000000"},
-		{"encode/xs-standard-time-max", "", SizeXS, false, false, 281_474_976_710_655, "", "7zzzzzzzzz"},
-		{"encode/s-compact-guard-last-valid", "usr", SizeS, true, false, 1_065_151_889_407, "012345", "usr_yzzzzzzz04hm5"},
-		{"encode/xl-standard-no-prefix", "", SizeXL, false, false, 1_700_000_000_000, "0123456789abcdef0123", "01hf7yat0004hmasw9nf6yy093"},
-		{"encode/xl-standard-empty-prefix", "", SizeXL, false, false, 1_700_000_000_000, "0123456789abcdef0123", "01hf7yat0004hmasw9nf6yy093"},
-		{"encode/s-standard-prefix-with-delimiter", "a_b", SizeS, false, false, 1_700_000_000_000, "0123", "a_b_01hf7yat0004h1"},
-	}
-	for _, c := range cases {
-		t.Run(c.id, func(t *testing.T) {
-			opts := Options{
-				Prefix:      c.prefix,
-				Size:        c.size,
-				CompactTime: c.compact,
-				Time:        time.UnixMilli(c.millis),
-				Rand:        unhex(t, c.rand),
-				Reader:      failingReader{t},
-			}
-			if c.upper {
-				opts.Case = CaseUpper
-			}
-			got, err := Generate(opts)
-			if err != nil {
-				t.Fatalf("Generate: %v", err)
-			}
-			if got != c.expected {
-				t.Fatalf("Generate = %q, want %q", got, c.expected)
-			}
-		})
-	}
-}
-
-// Hand-picked generate cases from the corpus's invalid.json (uxid-ex
-// v2.10.0): every generation error a time-based request can meet.
-//
-// sabotage: in Generate, compare compactLow>>35 against 30 instead of the
-// marker; both guard cases go red.
-func TestGenerateCorpusRefusals(t *testing.T) {
-	cases := []struct {
-		id       string
-		opts     Options
-		expected error
-	}{
-		{"invalid/generate-compact-time-at-guard",
-			Options{Prefix: "usr", Size: SizeS, CompactTime: true, Time: time.UnixMilli(2_164_663_517_184), Rand: []byte{1, 2, 3}},
-			ErrCompactTimeOutOfRange},
-		{"invalid/generate-compact-time-at-guard-previous-window",
-			Options{Prefix: "usr", Size: SizeS, CompactTime: true, Time: time.UnixMilli(1_065_151_889_408), Rand: []byte{1, 2, 3}},
-			ErrCompactTimeOutOfRange},
-		{"invalid/generate-rand-too-wide",
-			Options{Prefix: "usr", Size: SizeS, Time: corpusTime, Rand: []byte{1, 2, 3}},
-			ErrRandWidthMismatch},
-		{"invalid/generate-rand-too-narrow",
-			Options{Prefix: "usr", Size: SizeXL, Time: corpusTime, Rand: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}},
-			ErrRandWidthMismatch},
-		{"invalid/generate-rand-on-xs-standard",
-			Options{Prefix: "usr", Size: SizeXS, Time: corpusTime, Rand: []byte{1}},
-			ErrRandWidthMismatch},
-		{"invalid/generate-rand-size-11",
-			Options{Prefix: "usr", RandSize: new(11), Size: SizeXL, Time: corpusTime},
-			ErrRandSizeTooLarge},
-	}
-	for _, c := range cases {
-		t.Run(c.id, func(t *testing.T) {
-			c.opts.Reader = failingReader{t}
-			got, err := Generate(c.opts)
-			if !errors.Is(err, c.expected) {
-				t.Fatalf("Generate = %q, %v; want error %v", got, err, c.expected)
-			}
-			if got != "" {
-				t.Fatalf("Generate returned %q with its error", got)
-			}
-			if err.Error() != c.expected.Error() {
-				t.Fatalf("error text %q, want the corpus name %q", err.Error(), c.expected.Error())
-			}
-		})
-	}
-}
 
 // sabotage: change ErrRandWithMonotonic's text to "rand_with_monotonic_x";
 // this test goes red.

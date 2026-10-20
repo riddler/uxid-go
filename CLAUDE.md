@@ -111,8 +111,8 @@ paragraph, and in the header of the workflow it governs; a change a user of
 the API could notice is a changelog fragment (Conventions, below). The ID
 format itself is not decided here: it is uxid-ex's wire-format spec,
 `guides/wire-format.md` in https://github.com/riddler/uxid-ex, read at the
-tag the vendored corpus names (`conformance/SOURCE.json`, once the corpus is
-vendored). A future API decision may start a `docs/adr` directory.
+tag the vendored corpus names (`conformance/SOURCE.json`). A future API
+decision may start a `docs/adr` directory.
 
 Widening this section is a decision for the operator to make and record here.
 An agent may draft the change; it does not adopt it.
@@ -142,21 +142,23 @@ the `uxid` package with its `Version` constant, time-based and
 deterministic generation (`Generate`, its `Options` and its sentinel
 errors), monotonic generation (`NewMonotonic`, `Monotonic` and `Draws`),
 decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
-`DecodeError`) and the validity checks (`IsValid`, `IsDeterministic`), and
-the gate tasks.
-The rest of the library, CI and the vendored corpus arrive with later
-changes; until they do, the sentences in this file about the 1.0.0 library, its corpus and its
-workflows describe the target, not the current tree.
+`DecodeError`) and the validity checks (`IsValid`, `IsDeterministic`), the
+gate tasks and the vendored conformance corpus with its runner.
+The rest of the library and CI arrive with later changes; until they do,
+the sentences in this file about the 1.0.0 library and its workflows
+describe the target, not the current tree.
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
   installed with `go get github.com/riddler/uxid-go`. The 2020 `go.mod`
   named `github.com/riddler/uxid-go/v1`, a path that was never tagged; the
   rewrite replaced it, and the first version of the module is v1.0.0.
-- **The corpus is the arbiter.** `conformance/` will hold the corpus
-  vendored from uxid-ex at a release tag, its tag, commit and hash recorded in
-  `conformance/SOURCE.json`. The vendored files are never edited, and every
-  case passes with no skip list: a case this port cannot pass is reported
-  against uxid-ex with its evidence, never skipped or worked round here. An
+- **The corpus is the arbiter.** `conformance/` holds the corpus vendored
+  from uxid-ex at a release tag, its tag, commit and hash recorded in
+  `conformance/SOURCE.json`; `corpus_test.go` runs every case and
+  `corpus_hash_test.go` checks the hash and the case counts. The vendored
+  files are never edited, and every case passes with no skip list: a case
+  this port cannot pass is reported against uxid-ex with its evidence,
+  never skipped or worked round here. An
   answer the corpus does not fix follows uxid-ex's spec at that tag.
 
 `README.md` is the user reference; `CHANGELOG.md` records each release.
@@ -180,9 +182,11 @@ mise run gate           # full gate
 - The full gate checks that `gofmt -l` prints nothing, runs `go vet` and golangci-lint, runs
   `go test -race` with a coverage profile that `scripts/coverage-floor.sh`
   fails under 90 percent of statements (a profile with no statements passes,
-  and a missing or empty profile fails), runs govulncheck (which reaches the
-  network for the vulnerability database), and will run the conformance
-  corpus check once the corpus is vendored.
+  and a missing or empty profile fails), and runs govulncheck (which reaches the
+  network for the vulnerability database). The `go test` run includes the
+  conformance corpus check: `corpus_test.go` runs every case of the
+  vendored corpus, and `corpus_hash_test.go` recomputes its hash and case
+  counts.
 - **Never truncate the output.** No `| tail`, `| head`, `| grep`; truncating
   removes findings, not noise.
 - **Never go green by weakening the check.** Not by lowering the coverage

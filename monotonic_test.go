@@ -76,8 +76,9 @@ func readerBytes(calls []draw) []byte {
 	return out
 }
 
-// monotonicCase is one case of the conformance corpus's monotonic.json:
-// one generator's calls and draws, and the ids it emits.
+// monotonicCase is one case of the vendored corpus's monotonic.json: one
+// generator's calls and draws, and the ids it emits. A null prefix is the
+// empty one.
 type monotonicCase struct {
 	id       string
 	prefix   string
@@ -90,37 +91,45 @@ type monotonicCase struct {
 	expected []string
 }
 
-// monotonicCases are the six cases of the conformance corpus's
-// monotonic.json (uxid-ex v2.10.0), by their case ids, until the corpus
-// runner vendors the file. A null prefix is the empty one.
-var monotonicCases = []monotonicCase{
-	{"monotonic/xl-same-millisecond", "usr", SizeXL, false,
-		[]int64{1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_000},
-		123_456_789, []uint64{1, 1_099_511_627_776, 42}, nil,
-		[]string{"usr_01hf7yat0000000000003nqk8n", "usr_01hf7yat0000000000003nqk8p", "usr_01hf7yat0000000001003nqk8p", "usr_01hf7yat0000000001003nqka0"}},
-	{"monotonic/m-clock-moves-back", "usr", SizeM, false,
-		[]int64{1_700_000_000_000, 1_699_999_999_999, 1_699_999_999_990, 1_700_000_000_000},
-		1_000, []uint64{5, 1_048_576, 7}, nil,
-		[]string{"usr_01hf7yat00000000z8", "usr_01hf7yat00000000zd", "usr_01hf7yat00000100zd", "usr_01hf7yat00000100zm"}},
-	{"monotonic/s-overflow-bumps-time", "usr", SizeS, false,
-		[]int64{1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_000, 1_700_000_000_001},
-		65_000, []uint64{200, 250, 100, 7, 3}, new(uint64(1_234)),
-		[]string{"usr_01hf7yat00zqm0", "usr_01hf7yat00ztr0", "usr_01hf7yat00zyn0", "usr_01hf7yat010k90", "usr_01hf7yat010kc1", "usr_01hf7yat010ke0"}},
-	{"monotonic/xs-compact-overflow-clock-back", "usr", SizeXS, true,
-		[]int64{1_700_000_000_000, 1_700_000_000_000, 1_699_999_999_999},
-		250, []uint64{5, 16}, new(uint64(9)),
-		[]string{"usr_hf7yat00z2", "usr_hf7yat00z7", "usr_hf7yat0111"}},
-	{"monotonic/l-compact-single", "usr", SizeL, true,
-		[]int64{1_700_000_000_000},
-		0, nil, nil,
-		[]string{"usr_hf7yat000000000000000"}},
-	{"monotonic/s-compact-no-prefix-largest-step", "", SizeS, true,
-		[]int64{1_700_000_000_000, 1_700_000_000_000},
-		0, []uint64{4_096}, nil,
-		[]string{"hf7yat0000000", "hf7yat0000800"}},
+// corpusMonotonicCases are the cases of the vendored corpus's
+// monotonic.json, read through the corpus runner's readCases.
+func corpusMonotonicCases(t *testing.T) []monotonicCase {
+	t.Helper()
+	var cases []monotonicCase
+	for _, c := range readCases[monotonicCaseJSON](t, "monotonic") {
+		size, err := corpusSize(c.Input.Size)
+		if err != nil {
+			t.Fatalf("%s: %v", c.ID, err)
+		}
+		cases = append(cases, monotonicCase{
+			id:       c.ID,
+			prefix:   prefixOf(c.Input.Prefix),
+			size:     size,
+			compact:  c.Input.Compact,
+			times:    c.Input.Times,
+			initial:  c.Input.InitialSeed,
+			steps:    c.Input.Steps,
+			overflow: c.Input.OverflowSeed,
+			expected: c.Expected,
+		})
+	}
+	return cases
 }
 
-// replayFor is the case's draws: the initial seed, then the overflow seed
+// corpusMonotonicCase is the vendored monotonic case with the id, failing
+// the test when the corpus has none.
+func corpusMonotonicCase(t *testing.T, id string) monotonicCase {
+	t.Helper()
+	for _, c := range corpusMonotonicCases(t) {
+		if c.id == id {
+			return c
+		}
+	}
+	t.Fatalf("the vendored corpus has no case %s", id)
+	return monotonicCase{}
+}
+
+// replay is the case's draws: the initial seed, then the overflow seed
 // when the case has one, and its steps.
 func (c monotonicCase) replay() *replayDraws {
 	seeds := []uint64{c.initial}
@@ -142,35 +151,16 @@ func (c monotonicCase) run(t *testing.T, m *Monotonic, draws Draws) {
 	}
 }
 
-// The corpus's monotonic cases, with the draws replayed exactly through a
-// Draws of the test's own; every draw is used.
-//
-// sabotage: in NextWith, carry the call's time instead of the last id's
-// when the clock moves back (at = millis); the clock-back cases go red.
-func TestMonotonicCorpusCases(t *testing.T) {
-	for _, c := range monotonicCases {
-		t.Run(c.id, func(t *testing.T) {
-			m, err := NewMonotonic(Options{Prefix: c.prefix, Size: c.size, CompactTime: c.compact})
-			if err != nil {
-				t.Fatalf("NewMonotonic: %v", err)
-			}
-			draws := c.replay()
-			c.run(t, m, draws)
-			if len(draws.seeds) != 0 || len(draws.steps) != 0 {
-				t.Fatalf("draws left unused: seeds %v, steps %v", draws.seeds, draws.steps)
-			}
-		})
-	}
-}
-
-// The same cases through the default draws, with the byte source giving
-// the bytes those draws read: a seed is the field's bytes, and a step is
-// step - 1 in the low 4w bits of ceil(w / 2) bytes. Every byte is read.
+// The vendored corpus's monotonic cases, which the corpus runner replays
+// through a Draws, made again through the default draws, with the byte
+// source giving the bytes those draws read: a seed is the field's bytes,
+// and a step is step - 1 in the low 4w bits of ceil(w / 2) bytes. Every
+// byte is read.
 //
 // sabotage: in readerDraws.Step, return the masked value without the + 1;
 // every case with a step goes red.
 func TestMonotonicCorpusCasesThroughTheByteSource(t *testing.T) {
-	for _, c := range monotonicCases {
+	for _, c := range corpusMonotonicCases(t) {
 		t.Run(c.id, func(t *testing.T) {
 			recorded := c.replay()
 			m, err := NewMonotonic(Options{Prefix: c.prefix, Size: c.size, CompactTime: c.compact})
@@ -212,9 +202,10 @@ func TestMonotonicDefaultStepIsMasked(t *testing.T) {
 	}
 }
 
-// The monotonic refusals of the corpus's invalid.json, and the package's
-// own, all at NewMonotonic, which returns no generator with them. With
-// both From and Rand the request is refused for From.
+// The monotonic refusals, the wire format's and the package's own, all at
+// NewMonotonic, which returns no generator with them. With both From and
+// Rand the request is refused for From. The corpus runner runs the
+// corpus's own monotonic refusals.
 //
 // sabotage: in NewMonotonic, check Rand before From; the both row goes
 // red.
@@ -224,12 +215,8 @@ func TestNewMonotonicRefusals(t *testing.T) {
 		opts     Options
 		expected error
 	}{
-		{"invalid/generate-from-with-monotonic",
-			Options{Prefix: "usr", From: new("alice@example.com")},
-			ErrFromWithMonotonic},
-		{"invalid/generate-rand-with-monotonic",
-			Options{Prefix: "usr", Size: SizeS, Time: corpusTime, Rand: []byte{1, 2}},
-			ErrRandWithMonotonic},
+		{"from", Options{Prefix: "cus", From: new("")}, ErrFromWithMonotonic},
+		{"rand", Options{Prefix: "cus", Size: SizeXL, Rand: make([]byte, 10)}, ErrRandWithMonotonic},
 		{"from and rand", Options{From: new("a"), Rand: []byte{}}, ErrFromWithMonotonic},
 		{"unknown size", Options{Size: Size(9)}, ErrUnknownSize},
 		{"unknown case", Options{Case: Case(2)}, ErrUnknownCase},
@@ -251,13 +238,14 @@ func TestNewMonotonicRefusals(t *testing.T) {
 }
 
 // A monotonic xs uses compact time whatever CompactTime says, so it has a
-// one-byte field to step: the corpus's compact xs case comes out the same
-// with CompactTime false. An explicit RandSize still sets the width.
+// one-byte field to step: the vendored corpus's compact xs case comes out
+// the same with CompactTime false. An explicit RandSize still sets the
+// width.
 //
 // sabotage: in NewMonotonic, take compact time from opts.CompactTime
 // alone; NewMonotonic refuses the xs and the test goes red.
 func TestMonotonicXSIsCompact(t *testing.T) {
-	c := monotonicCases[3]
+	c := corpusMonotonicCase(t, "monotonic/xs-compact-overflow-clock-back")
 	m, err := NewMonotonic(Options{Prefix: c.prefix, Size: SizeXS})
 	if err != nil {
 		t.Fatalf("NewMonotonic: %v", err)
@@ -520,7 +508,8 @@ func TestMonotonicCaseAndDelimiter(t *testing.T) {
 //
 // sabotage: in NextWith, on an overflow store the next millisecond and the
 // new seed as the last id's before the compact guard runs; the call with
-// the smaller step overflows again and the test goes red.
+// the smaller step then lands on that stored guard millisecond, the compact
+// guard refuses it and the test goes red.
 func TestMonotonicRefusalKeepsTheLastId(t *testing.T) {
 	m, err := NewMonotonic(Options{Prefix: "usr", Size: SizeS, CompactTime: true})
 	if err != nil {

@@ -28,6 +28,8 @@
     "loop": ["mise", "run", "gate:loop"],
     "build_paths": [
       "base32.go",
+      "corpus_hash_test.go",
+      "corpus_test.go",
       "decode.go",
       "decode_test.go",
       "deterministic.go",
