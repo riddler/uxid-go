@@ -46,6 +46,10 @@ run = "scripts/coverage-floor.sh coverage.out"
 description = "govulncheck (reaches the network for the vulnerability database)"
 run = "govulncheck ./..."
 
+[tasks."gate:release-guard"]
+description = "Run the release workflow's checks against fixture values"
+run = "sh scripts/release-guard-test.sh"
+
 [tasks."gate:loop"]
 description = "Inner loop: vet, test"
 run = [
@@ -62,4 +66,5 @@ run = [
   { task = "gate:test" },
   { task = "gate:coverage" },
   { task = "gate:vulncheck" },
+  { task = "gate:release-guard" },
 ]

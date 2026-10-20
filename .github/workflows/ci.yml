@@ -1,0 +1,147 @@
+name: CI
+
+# Three jobs. `gate` runs the full quality gate - the command an agent must
+# have green before committing - on the Go toolchain mise.toml pins.
+# `go-versions` reads the two Go releases the tests run on: the oldest Go the
+# module supports (go.mod's `go` line) and the Go mise.toml pins. `test` runs
+# `go test -race ./...`, the conformance corpus among the tests, on each of
+# them, so a change that builds only on a newer Go is caught before it ships.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only: nothing here writes to the repository or authenticates anywhere.
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request supersedes the run in
+# progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Full quality gate (mise.toml Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The toolchain comes from mise.toml, provisioned by mise itself: the Go
+      # release, golangci-lint and govulncheck, at the versions pinned there.
+      # A version written into this file would drift the first time mise.toml
+      # moves. The action installs mise at the version below, runs `mise
+      # install` against mise.toml, and caches the tools. It is a third-party
+      # action, so it is pinned to a full commit SHA with its version in the
+      # trailing comment.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.8.2
+
+      # The gate is mise.toml's `gate` task: gofmt, go vet, golangci-lint, the
+      # tests under the race detector (the conformance corpus among them),
+      # the coverage floor, govulncheck and the release workflow's checks run
+      # against fixture values. The command is read out of .claude/wurk.json
+      # (gate.full) rather than written here, so the gate CI runs and the gate
+      # an agent must have green are one definition with one place to change
+      # it. It is read and executed inside the step rather than interpolated
+      # into `run:`, so a repository file never reaches the shell as
+      # expression text.
+      - name: Full quality gate
+        run: |
+          set -euo pipefail
+          mise exec -- go version
+          mapfile -t cmd < <(jq -er '.gate.full[]' .claude/wurk.json)
+          test "${#cmd[@]}" -gt 0 || { echo "::error::gate.full is empty" >&2; exit 1; }
+          echo "gate command (.claude/wurk.json gate.full): ${cmd[*]}"
+          "${cmd[@]}"
+
+      # A gate that rewrites a tracked file (gofmt, say) or leaves an
+      # untracked file that is not ignored passes locally only because the
+      # change is then committed; here it is a failure, as it is before a
+      # release.
+      - name: Check the gate left the checkout clean
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "::error::the gate left changed or untracked files" >&2
+            exit 1
+          fi
+
+  go-versions:
+    name: Read the Go releases to test on
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Both versions are read out of the repository rather than written
+      # here, so moving the floor in go.mod or the pin in mise.toml moves this
+      # job with no edit to this file. mise.toml is read with Python's TOML
+      # reader (on the runner already). When the two are the same release the
+      # tests run once.
+      - name: Read go.mod's floor and mise.toml's pin
+        id: read
+        run: |
+          set -euo pipefail
+          floor="$(awk '$1 == "go" { print $2; exit }' go.mod)"
+          pinned="$(python3 -c 'import tomllib; print(tomllib.load(open("mise.toml", "rb"))["tools"]["go"])')"
+          bound='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+          for v in "$floor" "$pinned"; do
+            if [[ ! "$v" =~ $bound ]]; then
+              echo "::error::read Go version '${v}' (go.mod floor '${floor}', mise.toml pin '${pinned}'), not a version this job can use" >&2
+              exit 1
+            fi
+          done
+          if [ "$floor" = "$pinned" ]; then
+            matrix="[\"${floor}\"]"
+          else
+            matrix="[\"${floor}\",\"${pinned}\"]"
+          fi
+          echo "go.mod declares go ${floor}; mise.toml pins go ${pinned}; testing on ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests (Go ${{ matrix.go }})
+    needs: go-versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
+
+    # GOTOOLCHAIN=local: the go command runs the release setup-go installed
+    # and never downloads a newer one, so each job tests on the Go it names.
+    env:
+      GOTOOLCHAIN: local
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # actions/setup-go installs the latest patch release of the line the
+      # matrix names, the one a user on that line runs. The module has no
+      # go.sum (no dependency), so there is nothing for its cache to key on,
+      # and the cache is off.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+
+      - name: Test with the race detector
+        run: |
+          set -euo pipefail
+          go version
+          go test -race ./...
