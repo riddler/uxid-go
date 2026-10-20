@@ -140,7 +140,8 @@ checks; it uses the standard library only, takes its random bytes from
 that was on `main` is gone; the tree holds the rewrite so far: the module,
 the `uxid` package with its `Version` constant, time-based and
 deterministic generation (`Generate`, its `Options` and its sentinel
-errors), decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
+errors), monotonic generation (`NewMonotonic`, `Monotonic` and `Draws`),
+decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
 `DecodeError`) and the validity checks (`IsValid`, `IsDeterministic`), and
 the gate tasks.
 The rest of the library, CI and the vendored corpus arrive with later

@@ -273,8 +273,10 @@ func TestDecodeDefaults(t *testing.T) {
 
 // A compact time more than one day ahead of the clock is moved back one
 // window whatever the clock, as the wire format's subtraction has no
-// exception: under a clock in the first window after the epoch, or before
-// the epoch (read as the epoch), that gives a time before the epoch.
+// exception: under a clock in the first window after the epoch that gives
+// a time before the epoch. A clock before the epoch is in the window that
+// ends at the epoch, by the reference's arithmetic shift, so every compact
+// time under it is read from that window.
 //
 // sabotage: in compactTime, subtract the window only when t >=
 // compactWindow; the two epoch rows and the decode row go red.
@@ -286,7 +288,7 @@ func TestCompactTimeNearTheEpoch(t *testing.T) {
 	}{
 		{"at the epoch, far ahead", 1 << 39, 0, 1<<39 - compactWindow},
 		{"before the epoch, far ahead", 1 << 39, -1_000, 1<<39 - compactWindow},
-		{"before the epoch", 5, -1_000, 5},
+		{"before the epoch", 5, -1_000, 5 - compactWindow},
 		{"a day ahead exactly", oneDay, 0, oneDay},
 		{"second window, far ahead", 1 << 39, compactWindow, 1 << 39},
 		{"second window, behind", 7, compactWindow + 100, compactWindow + 7},
@@ -299,6 +301,31 @@ func TestCompactTimeNearTheEpoch(t *testing.T) {
 	got, err := DecodeWith("usr_hf7yat0004hm5", DecodeOptions{Now: time.UnixMilli(1_000)})
 	if want := int64(600_488_372_224) - compactWindow; err != nil || got.Time.UnixMilli() != want {
 		t.Errorf("decode under a clock of 1000 ms: %+v, %v; want %d ms", got, err, want)
+	}
+}
+
+// A clock before the Unix epoch is read with the reference's arithmetic,
+// not as the epoch: its bits above bit 40, shifted arithmetically, are -1,
+// so a compact time of 5 ms under a clock of -1000 ms is 5 - 2^40 ms. Read
+// as the epoch, the clock would give 5 ms.
+//
+// sabotage: in compactTime, read a clock before the epoch as the epoch
+// (now = 0 when now < 0); both rows go red.
+func TestDecodeWithAClockBeforeTheEpoch(t *testing.T) {
+	rows := []struct {
+		name string
+		now  int64
+		want int64
+	}{
+		{"one second before", -1_000, 5 - compactWindow},
+		{"one window before", -compactWindow, 5 - compactWindow},
+		{"just past one window before", -compactWindow - 1, 5 - 2*compactWindow},
+	}
+	for _, r := range rows {
+		got, err := DecodeWith("usr_0000000500000", DecodeOptions{Now: time.UnixMilli(r.now)})
+		if err != nil || !got.Compact || got.Time.UnixMilli() != r.want {
+			t.Errorf("%s: %+v, %v; want %d ms", r.name, got, err, r.want)
+		}
 	}
 }
 

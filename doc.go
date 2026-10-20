@@ -18,8 +18,11 @@
 // IsDeterministic answer whether a string decodes, and whether it decodes
 // to a deterministic id, under a given delimiter.
 //
-// The package uses the standard library only and takes its random bytes
-// from crypto/rand.Reader unless Options names another io.Reader. It
-// generates time-based and deterministic ids and decodes them; monotonic
-// ids are not in it yet.
+// NewMonotonic builds a Monotonic, a generator whose ids increase strictly,
+// also within one millisecond and when the clock moves back; it holds its
+// state and its lock itself, and is safe for concurrent use.
+//
+// The package uses the standard library only, keeps no package-level
+// state, and takes its random bytes from crypto/rand.Reader unless Options
+// names another io.Reader.
 package uxid
