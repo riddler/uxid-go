@@ -271,19 +271,21 @@ func TestDecodeDefaults(t *testing.T) {
 	}
 }
 
-// A compact time under a clock in the first window after the epoch, or
-// before the epoch, is the time in the first window: there is no window
-// before it.
+// A compact time more than one day ahead of the clock is moved back one
+// window whatever the clock, as the wire format's subtraction has no
+// exception: under a clock in the first window after the epoch, or before
+// the epoch (read as the epoch), that gives a time before the epoch.
 //
-// sabotage: in compactTime, drop the t >= compactWindow condition; the
-// epoch row goes red.
+// sabotage: in compactTime, subtract the window only when t >=
+// compactWindow; the two epoch rows and the decode row go red.
 func TestCompactTimeNearTheEpoch(t *testing.T) {
 	rows := []struct {
 		name      string
 		low       uint64
 		now, want int64
 	}{
-		{"at the epoch, far ahead", 1 << 39, 0, 1 << 39},
+		{"at the epoch, far ahead", 1 << 39, 0, 1<<39 - compactWindow},
+		{"before the epoch, far ahead", 1 << 39, -1_000, 1<<39 - compactWindow},
 		{"before the epoch", 5, -1_000, 5},
 		{"a day ahead exactly", oneDay, 0, oneDay},
 		{"second window, far ahead", 1 << 39, compactWindow, 1 << 39},
@@ -293,6 +295,10 @@ func TestCompactTimeNearTheEpoch(t *testing.T) {
 		if got := compactTime(r.low, r.now); got != r.want {
 			t.Errorf("%s: compactTime(%d, %d) = %d, want %d", r.name, r.low, r.now, got, r.want)
 		}
+	}
+	got, err := DecodeWith("usr_hf7yat0004hm5", DecodeOptions{Now: time.UnixMilli(1_000)})
+	if want := int64(600_488_372_224) - compactWindow; err != nil || got.Time.UnixMilli() != want {
+		t.Errorf("decode under a clock of 1000 ms: %+v, %v; want %d ms", got, err, want)
 	}
 }
 

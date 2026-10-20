@@ -134,12 +134,12 @@ func Decode(id string) (Decoded, error) {
 // then nine groups of 5. A compact body carries only the low 40 bits of its
 // time in its first 8 characters; the high bits are the clock's, less one
 // 2^40 ms window when the result would be more than one day ahead of the
-// clock and a window before exists. So the time comes back exact while the
-// id and the clock fall in the same 2^40 ms window (about 34.8 years) and
-// the id is no more than one day ahead of the clock. With the clock in the
-// first window after the Unix epoch there is no window before, and the
-// time is the one in the clock's window. The clock is read only for a
-// compact body.
+// clock. So the time comes back exact while the id and the clock fall in
+// the same 2^40 ms window (about 34.8 years) and the id is no more than one
+// day ahead of the clock. With the clock in the first window after the Unix
+// epoch, the window before is the one ending at the epoch, so a time read
+// from it is before the epoch: Decoded.Time holds such a time. The clock is
+// read only for a compact body.
 //
 // A string that is not a well-formed id is refused with a *DecodeError
 // whose Reason is the first rule the body breaks, checked in this order:
@@ -285,14 +285,14 @@ func readSymbols(symbols string) uint64 {
 
 // compactTime is the time of the compact field low under the clock now, in
 // milliseconds: the clock's bits above bit 40 with low, less one window when
-// that is more than one day ahead of the clock and a window before exists.
-// A clock before the Unix epoch reads as the epoch.
+// that is more than one day ahead of the clock, which can give a time before
+// the epoch. A clock before the Unix epoch reads as the epoch.
 func compactTime(low uint64, now int64) int64 {
 	if now < 0 {
 		now = 0
 	}
 	t := now>>40<<40 | int64(low)
-	if t > now && t-now > oneDay && t >= compactWindow {
+	if t > now && t-now > oneDay {
 		t -= compactWindow
 	}
 	return t
