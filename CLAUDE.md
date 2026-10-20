@@ -194,9 +194,11 @@ mise run gate           # full gate
   `gate.also_gated_paths` has no gate to run and may commit on review of the
   diff alone. A change touching any `.go` file runs the full gate, whatever
   the lists say. The lists take directory prefixes and exact paths only, no
-  glob, and the package sits at the repository root, so every `.go` file at
-  the root, tests included, is listed by name in `gate.build_paths`, and a
-  change that adds one adds its name there in the same change. `doc.go`,
+  glob, and the rewrite's package sits at the repository root, so every
+  `.go` file the rewrite adds at the root, tests included, is listed by name
+  in `gate.build_paths` in the same change that adds it. The 2020 `.go`
+  files are not listed; a change to one runs the full gate under the rule
+  above. `doc.go`,
   `version.go`, `internal/`, `testdata/`, `scripts/` and `conformance/` are
   what the gate compiles and checks, and `go.mod`, `go.sum`, `mise.toml` and
   `.golangci.yml` decide how it runs and what it resolves. A listed path need
