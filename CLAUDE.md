@@ -137,10 +137,11 @@ reference `uxid` and checked against its conformance corpus. It covers
 generation (random, deterministic and monotonic), decoding and the validity
 checks; it uses the standard library only, takes its random bytes from
 `crypto/rand` by default, and builds on Go 1.26 or later. The 2020 code
-that was on `main` is gone; the tree holds the scaffold of the rewrite: the
-module, the `uxid` package with its `Version` constant, and the gate tasks.
-The library, CI and the vendored corpus arrive with later changes; until they
-do, the sentences in this file about the 1.0.0 library, its corpus and its
+that was on `main` is gone; the tree holds the rewrite so far: the module,
+the `uxid` package with its `Version` constant and time-based generation
+(`Generate`, its `Options` and its sentinel errors), and the gate tasks.
+The rest of the library, CI and the vendored corpus arrive with later
+changes; until they do, the sentences in this file about the 1.0.0 library, its corpus and its
 workflows describe the target, not the current tree.
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
@@ -194,9 +195,9 @@ mise run gate           # full gate
   the lists say. The lists take directory prefixes and exact paths only, no
   glob, and the rewrite's package sits at the repository root, so every
   `.go` file the rewrite adds at the root, tests included, is listed by name
-  in `gate.build_paths` in the same change that adds it. `doc.go`,
-  `version.go`, `version_test.go`, `internal/`, `testdata/`, `scripts/` and `conformance/` are
-  what the gate compiles and checks, and `go.mod`, `go.sum`, `mise.toml` and
+  in `gate.build_paths` in the same change that adds it. The root `.go`
+  files the manifest lists, `internal/`, `testdata/`, `scripts/` and
+  `conformance/` are what the gate compiles and checks, and `go.mod`, `go.sum`, `mise.toml` and
   `.golangci.yml` decide how it runs and what it resolves. A listed path need
   not exist yet.
 - Documentation may point at the gate; it never enlarges it.
