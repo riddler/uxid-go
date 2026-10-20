@@ -29,6 +29,7 @@
     "build_paths": [
       "doc.go",
       "version.go",
+      "version_test.go",
       "internal/",
       "testdata/",
       "scripts/",

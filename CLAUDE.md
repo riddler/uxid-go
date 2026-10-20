@@ -136,18 +136,17 @@ copy and route back to their resource, wire-compatible with the Elixir
 reference `uxid` and checked against its conformance corpus. It covers
 generation (random, deterministic and monotonic), decoding and the validity
 checks; it uses the standard library only, takes its random bytes from
-`crypto/rand` by default, and builds on Go 1.26 or later. The 2020 code on
-`main` (`uxid.go`, `uxid_test.go`, `cli/`, a `go.mod` and `go.sum` on a
-module path that was never tagged, and the files beside them)
-is being replaced by that rewrite. The library, the gate tasks, CI and the
-vendored corpus arrive with later changes; until they do, the sentences in
-this file about the 1.0.0 module, its corpus, its gate and its workflows
-describe the target, not the current tree.
+`crypto/rand` by default, and builds on Go 1.26 or later. The 2020 code
+that was on `main` is gone; the tree holds the scaffold of the rewrite: the
+module, the `uxid` package with its `Version` constant, and the gate tasks.
+The library, CI and the vendored corpus arrive with later changes; until they
+do, the sentences in this file about the 1.0.0 library, its corpus and its
+workflows describe the target, not the current tree.
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
   installed with `go get github.com/riddler/uxid-go`. The 2020 `go.mod`
-  names `github.com/riddler/uxid-go/v1`, a path that was never tagged; the
-  rewrite replaces it, and the first version of the module is v1.0.0.
+  named `github.com/riddler/uxid-go/v1`, a path that was never tagged; the
+  rewrite replaced it, and the first version of the module is v1.0.0.
 - **The corpus is the arbiter.** `conformance/` will hold the corpus
   vendored from uxid-ex at a release tag, its tag, commit and hash recorded in
   `conformance/SOURCE.json`. The vendored files are never edited, and every
@@ -155,13 +154,11 @@ describe the target, not the current tree.
   against uxid-ex with its evidence, never skipped or worked round here. An
   answer the corpus does not fix follows uxid-ex's spec at that tag.
 
-`README.md` is the user reference; `CHANGELOG.md`, which the rewrite adds,
-records each release.
+`README.md` is the user reference; `CHANGELOG.md` records each release.
 
 ## Build & Test
 
-The gate tasks live in `mise.toml`, which the rewrite adds; on a tree without
-it these commands do not run yet.
+The gate tasks live in `mise.toml`.
 
 ```bash
 mise install            # the Go toolchain and the tools mise.toml pins
@@ -175,11 +172,12 @@ mise run gate           # full gate
   Only the full command is the advancement gate: a `gate:loop` run, like a
   bare `go test` or any other scoped run, is never evidence for a claim that
   the gate is green.
-- Once the change that adds `mise.toml` lands, the full gate checks that
-  `gofmt -l` prints nothing, runs `go vet` and golangci-lint, runs
+- The full gate checks that `gofmt -l` prints nothing, runs `go vet` and golangci-lint, runs
   `go test -race` with a coverage profile that `scripts/coverage-floor.sh`
-  fails under 90 percent of statements, runs govulncheck, and runs the
-  conformance corpus check once the corpus is vendored.
+  fails under 90 percent of statements (a profile with no statements passes,
+  and a missing or empty profile fails), runs govulncheck (which reaches the
+  network for the vulnerability database), and will run the conformance
+  corpus check once the corpus is vendored.
 - **Never truncate the output.** No `| tail`, `| head`, `| grep`; truncating
   removes findings, not noise.
 - **Never go green by weakening the check.** Not by lowering the coverage
@@ -196,10 +194,8 @@ mise run gate           # full gate
   the lists say. The lists take directory prefixes and exact paths only, no
   glob, and the rewrite's package sits at the repository root, so every
   `.go` file the rewrite adds at the root, tests included, is listed by name
-  in `gate.build_paths` in the same change that adds it. The 2020 `.go`
-  files are not listed; a change to one runs the full gate under the rule
-  above. `doc.go`,
-  `version.go`, `internal/`, `testdata/`, `scripts/` and `conformance/` are
+  in `gate.build_paths` in the same change that adds it. `doc.go`,
+  `version.go`, `version_test.go`, `internal/`, `testdata/`, `scripts/` and `conformance/` are
   what the gate compiles and checks, and `go.mod`, `go.sum`, `mise.toml` and
   `.golangci.yml` decide how it runs and what it resolves. A listed path need
   not exist yet.
