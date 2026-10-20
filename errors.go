@@ -6,9 +6,9 @@ import "errors"
 // Each error's text is exactly that name, the one the conformance corpus
 // gives the refusal, so err.Error() on a value Generate returns is the
 // corpus name; match them with errors.Is. Generate returns the first
-// three. The other three name the refusals of deterministic ids and of
-// monotonic generation, which this package does not offer yet; nothing
-// returns them today.
+// three and ErrRandWithFrom. ErrFromWithMonotonic and ErrRandWithMonotonic
+// name the refusals of monotonic generation, which this package does not
+// offer yet; nothing returns them today.
 var (
 	// ErrCompactTimeOutOfRange refuses a compact time whose first
 	// character would be the deterministic marker: the low 40 bits of the

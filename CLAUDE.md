@@ -138,8 +138,9 @@ generation (random, deterministic and monotonic), decoding and the validity
 checks; it uses the standard library only, takes its random bytes from
 `crypto/rand` by default, and builds on Go 1.26 or later. The 2020 code
 that was on `main` is gone; the tree holds the rewrite so far: the module,
-the `uxid` package with its `Version` constant and time-based generation
-(`Generate`, its `Options` and its sentinel errors), and the gate tasks.
+the `uxid` package with its `Version` constant and time-based and
+deterministic generation (`Generate`, its `Options` and its sentinel
+errors), and the gate tasks.
 The rest of the library, CI and the vendored corpus arrive with later
 changes; until they do, the sentences in this file about the 1.0.0 library, its corpus and its
 workflows describe the target, not the current tree.
