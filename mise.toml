@@ -35,7 +35,7 @@ description = "golangci-lint"
 run = "golangci-lint run ./..."
 
 [tasks."gate:test"]
-description = "Test with the race detector and a coverage profile"
+description = "Test with the race detector and a coverage profile, the conformance corpus included"
 run = "go test -race -covermode=atomic -coverprofile=coverage.out ./..."
 
 [tasks."gate:coverage"]

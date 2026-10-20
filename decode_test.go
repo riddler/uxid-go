@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// The decoder clock window the conformance corpus's README states (uxid-ex
-// v2.10.0): every compact decode case holds for a clock from
+// The decoder clock window the vendored corpus's README states
+// (conformance/README.md): every compact decode case holds for a clock from
 // 1699913600000 ms (2023-11-13T22:13:20.000Z) inclusive to 2164577117183 ms
 // (2038-08-04T23:25:17.183Z) exclusive. The start is one day before the
 // cases at 1700000000000 ms; the end is 2^40 + 1065151889407 less one day,
@@ -18,75 +18,6 @@ const (
 	windowStart int64 = 1_699_913_600_000
 	windowEnd   int64 = 2_164_577_117_183
 )
-
-// decodeCase is a hand-picked decode case from the corpus's decode.json
-// (uxid-ex v2.10.0), by its case id. A deterministic case has millis -1.
-type decodeCase struct {
-	id            string
-	input         string
-	prefix        string
-	size          Size
-	compact       bool
-	deterministic bool
-	millis        int64
-}
-
-// Every decode case of the corpus, until the corpus runner vendors the
-// file: every size in both time forms, the 10 and 18 readings, upper case,
-// no prefix, a prefix holding the delimiter, the compact guard's last valid
-// time and the deterministic bodies.
-var decodeCases = []decodeCase{
-	{"decode/xl-standard", "usr_01hf7yat0004hmasw9nf6yy093", "usr", SizeXL, false, false, 1_700_000_000_000},
-	{"decode/xl-compact", "usr_hf7yat0004hmasw9nf6yy093", "usr", SizeXL, true, false, 1_700_000_000_000},
-	{"decode/l-standard", "usr_01hf7yat0004hmasw9nf61", "usr", SizeL, false, false, 1_700_000_000_000},
-	{"decode/l-compact", "usr_hf7yat0004hmasw9nf6yf", "usr", SizeL, true, false, 1_700_000_000_000},
-	{"decode/m-standard", "usr_01hf7yat0004hmasw9", "usr", SizeM, false, false, 1_700_000_000_000},
-	{"decode/m-compact-reads-as-standard", "usr_hf7yat0004hmasw9n3", "usr", SizeM, false, false, 51_950_139_736_068},
-	{"decode/s-standard", "usr_01hf7yat0004h1", "usr", SizeS, false, false, 1_700_000_000_000},
-	{"decode/s-compact", "usr_hf7yat0004hm5", "usr", SizeS, true, false, 1_700_000_000_000},
-	{"decode/xs-standard", "usr_01hf7yat00", "usr", SizeXS, false, false, 1_700_000_000_000},
-	{"decode/xs-compact-reads-as-standard", "usr_hf7yat0001", "usr", SizeXS, false, false, 51_950_139_736_065},
-	{"decode/xl-standard-upper", "usr_01HF7YAT0004HMASW9NF6YY093", "usr", SizeXL, false, false, 1_700_000_000_000},
-	{"decode/xl-standard-no-prefix", "01hf7yat0004hmasw9nf6yy093", "", SizeXL, false, false, 1_700_000_000_000},
-	{"decode/s-standard-prefix-with-delimiter", "a_b_01hf7yat000001", "a_b", SizeS, false, false, 1_700_000_000_000},
-	{"decode/s-compact-guard-last-valid", "usr_yzzzzzzz04hm5", "usr", SizeS, true, false, 1_065_151_889_407},
-	{"decode/deterministic-usr-xl", "usr_zcvt7epac0t1ebcsjfyf7cwz25", "usr", SizeXL, false, true, -1},
-	{"decode/deterministic-cus-s", "cus_zt9vnyfd85bff0", "cus", SizeS, false, true, -1},
-	{"decode/deterministic-no-prefix-m", "zqz4cwzgyw8ks97869", "", SizeM, false, true, -1},
-	{"decode/deterministic-upper-marker", "usr_ZCVT7EPAC0T1EBCSJFYF7CWZ25", "usr", SizeXL, false, true, -1},
-}
-
-// checkDecoded fails the test when got is not what c expects.
-func checkDecoded(t *testing.T, c decodeCase, got Decoded) {
-	t.Helper()
-	if got.Prefix != c.prefix || got.Size != c.size || got.Compact != c.compact || got.Deterministic != c.deterministic {
-		t.Errorf("%s: Decoded = %+v, want prefix %q size %v compact %v deterministic %v",
-			c.id, got, c.prefix, c.size, c.compact, c.deterministic)
-	}
-	switch {
-	case c.millis < 0 && !got.Time.IsZero():
-		t.Errorf("%s: Time = %v, want the zero time", c.id, got.Time)
-	case c.millis >= 0 && (got.Time.UnixMilli() != c.millis || got.Time.Location() != time.UTC):
-		t.Errorf("%s: Time = %v (%d ms), want %d ms in UTC", c.id, got.Time, got.Time.UnixMilli(), c.millis)
-	}
-}
-
-// Every corpus decode case, at both ends of the clock window.
-//
-// sabotage: in compactTime, subtract the window when t-now >= oneDay; the
-// compact cases go red at the window's start.
-func TestDecodeCorpusCases(t *testing.T) {
-	for _, now := range []int64{windowStart, windowEnd - 1} {
-		for _, c := range decodeCases {
-			got, err := DecodeWith(c.input, DecodeOptions{Now: time.UnixMilli(now)})
-			if err != nil {
-				t.Errorf("%s at clock %d: %v", c.id, now, err)
-				continue
-			}
-			checkDecoded(t, c, got)
-		}
-	}
-}
 
 // Just outside the window, each end's case comes back from the wrong 2^40
 // ms window: the cases at 1700000000000 ms one millisecond before the start,
@@ -111,50 +42,6 @@ func TestDecodeClockWindowEnds(t *testing.T) {
 		}
 		if got.Time.UnixMilli() != r.want {
 			t.Errorf("%s: Time = %d ms, want %d", r.name, got.Time.UnixMilli(), r.want)
-		}
-	}
-}
-
-// Every corpus decode refusal, by its case id, with the reason in a
-// *DecodeError whose text is the corpus name.
-//
-// sabotage: in form, check the alphabet before the length; the
-// decode-length-and-character row goes red.
-func TestDecodeCorpusRefusals(t *testing.T) {
-	cases := []struct {
-		id     string
-		input  string
-		reason Reason
-	}{
-		{"invalid/decode-empty-string", "", ReasonEmpty},
-		{"invalid/decode-ends-in-delimiter", "usr_", ReasonEmpty},
-		{"invalid/decode-prefix-with-delimiter-ends-in-delimiter", "a_b_", ReasonEmpty},
-		{"invalid/decode-delimiter-only", "_", ReasonEmpty},
-		{"invalid/decode-length-11", "usr_01hf7yat000", ReasonInvalidLength},
-		{"invalid/decode-length-25", "usr_01hf7yat00000g40r40m30e20", ReasonInvalidLength},
-		{"invalid/decode-length-27", "usr_01hf7yat00000g40r40m30e2090", ReasonInvalidLength},
-		{"invalid/decode-no-delimiter-short", "usr", ReasonInvalidLength},
-		{"invalid/decode-character-in-time", "usr_01hu7yat00000g40r40m30e209", ReasonInvalidCharacter},
-		{"invalid/decode-character-in-random", "usr_01hf7yat00000g4lr40m30e209", ReasonInvalidCharacter},
-		{"invalid/decode-upper-o-in-random", "usr_01hf7yat00000g40r40mO0e209", ReasonInvalidCharacter},
-		{"invalid/decode-hyphen-in-body", "usr_01hf7yat00-00g40r40m30e209", ReasonInvalidCharacter},
-		{"invalid/decode-character-in-deterministic", "usr_zcvt7epac0t1ebcsjfyf7cwzi5", ReasonInvalidCharacter},
-		{"invalid/decode-non-ascii-table-length", "01hf7yat00000g40r40m30e2é", ReasonInvalidCharacter},
-		{"invalid/decode-non-ascii-off-table-length", "01hf7yat00000g40r40m30e20é", ReasonInvalidLength},
-		{"invalid/decode-length-and-character", "usr_01hf7yat00u", ReasonInvalidLength},
-	}
-	for _, c := range cases {
-		got, err := DecodeWith(c.input, DecodeOptions{Now: time.UnixMilli(windowStart)})
-		var decodeErr *DecodeError
-		if !errors.As(err, &decodeErr) {
-			t.Errorf("%s: Decode = %+v, %v; want a *DecodeError", c.id, got, err)
-			continue
-		}
-		if decodeErr.Reason != c.reason || err.Error() != string(c.reason) {
-			t.Errorf("%s: reason %q, text %q; want %q", c.id, decodeErr.Reason, err.Error(), c.reason)
-		}
-		if got != (Decoded{}) {
-			t.Errorf("%s: Decoded %+v returned with its error", c.id, got)
 		}
 	}
 }
@@ -248,26 +135,30 @@ func TestDecodeReadsTheClockOnlyForACompactBody(t *testing.T) {
 }
 
 // Decode is DecodeWith with the zero options: the delimiter "_" and the
-// system clock. A compact case's time depends on that clock, so only its
-// prefix, size and form are checked here; the clock window tests above pin
-// its time through an injected clock.
+// system clock, over every decode case of the vendored corpus. A compact
+// case's time depends on that clock, so only its prefix, size and form are
+// checked here; the corpus runner and the clock window tests above pin its
+// time through an injected clock.
 //
-// sabotage: in Decode, pass DecodeOptions{Delimiter: "-"}; every row goes
+// sabotage: in Decode, pass DecodeOptions{Delimiter: "-"}; every case goes
 // red.
 func TestDecodeDefaults(t *testing.T) {
-	for _, c := range decodeCases {
-		got, err := Decode(c.input)
+	for _, c := range readCases[decodeCase](t, "decode") {
+		want, err := c.want()
 		if err != nil {
-			t.Errorf("%s: %v", c.id, err)
+			t.Fatalf("%s: %v", c.ID, err)
+		}
+		got, err := Decode(c.Input)
+		if err != nil {
+			t.Errorf("%s: %v", c.ID, err)
 			continue
 		}
-		if c.compact {
-			if got.Prefix != c.prefix || got.Size != c.size || !got.Compact || got.Deterministic {
-				t.Errorf("%s: Decoded = %+v", c.id, got)
-			}
-			continue
+		if want.Compact {
+			got.Time, want.Time = time.Time{}, time.Time{}
 		}
-		checkDecoded(t, c, got)
+		if !sameDecoded(got, want) {
+			t.Errorf("%s: Decoded = %+v, want %+v", c.ID, got, want)
+		}
 	}
 }
 

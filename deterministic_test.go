@@ -9,52 +9,6 @@ import (
 	"time"
 )
 
-// Every case of the conformance corpus's deterministic.json (uxid-ex
-// v2.10.0), by its case id, until the corpus runner vendors the file: the
-// three golden ids, every size, no prefix and an empty prefix, upper case
-// and a non-ASCII input. A null prefix in the corpus is no prefix here.
-//
-// sabotage: in writeDeterministic, leave the count byte out of the hash
-// input; every case goes red.
-func TestGenerateCorpusDeterministicCases(t *testing.T) {
-	cases := []struct {
-		id       string
-		prefix   string
-		from     string
-		size     Size
-		upper    bool
-		expected string
-	}{
-		{"deterministic/golden-usr-xl", "usr", "alice@example.com", SizeXL, false, "usr_zcvt7epac0t1ebcsjfyf7cwz25"},
-		{"deterministic/golden-cus-s", "cus", "acme-corp", SizeS, false, "cus_zt9vnyfd85bff0"},
-		{"deterministic/golden-no-prefix-m", "", "alice@example.com", SizeM, false, "zqz4cwzgyw8ks97869"},
-		{"deterministic/usr-xs", "usr", "alice@example.com", SizeXS, false, "usr_z1yhw20vag"},
-		{"deterministic/usr-s", "usr", "alice@example.com", SizeS, false, "usr_z5rtsrkhx2h4dr"},
-		{"deterministic/usr-m", "usr", "alice@example.com", SizeM, false, "usr_zt8naccefxhwnrmscd"},
-		{"deterministic/usr-l", "usr", "alice@example.com", SizeL, false, "usr_zwbz6myvgz7ehe3nceap5n"},
-		{"deterministic/usr-xl", "usr", "alice@example.com", SizeXL, false, "usr_zcvt7epac0t1ebcsjfyf7cwz25"},
-		{"deterministic/empty-prefix-xl", "", "alice@example.com", SizeXL, false, "z4krgegf6drn563pvqhya4tsx9"},
-		{"deterministic/no-prefix-xl", "", "alice@example.com", SizeXL, false, "z4krgegf6drn563pvqhya4tsx9"},
-		{"deterministic/usr-xl-upper", "usr", "alice@example.com", SizeXL, true, "usr_ZCVT7EPAC0T1EBCSJFYF7CWZ25"},
-		{"deterministic/non-ascii-from-m", "cus", "café", SizeM, false, "cus_zfsx9se75671f9kdjv"},
-	}
-	for _, c := range cases {
-		t.Run(c.id, func(t *testing.T) {
-			opts := Options{Prefix: c.prefix, Size: c.size, From: new(c.from), Reader: failingReader{t}}
-			if c.upper {
-				opts.Case = CaseUpper
-			}
-			got, err := Generate(opts)
-			if err != nil {
-				t.Fatalf("Generate: %v", err)
-			}
-			if got != c.expected {
-				t.Fatalf("Generate = %q, want %q", got, c.expected)
-			}
-		})
-	}
-}
-
 // expectedDeterministic is an oracle for the spec's layout written apart
 // from the package's own code: SHA-256 over prefix, 0x00, from, 0x00 and the
 // count byte, read as one big integer, its top count x 5 bits written as
@@ -143,19 +97,19 @@ func TestGenerateDeterministicDelimiter(t *testing.T) {
 	}
 }
 
-// The corpus case invalid/generate-rand-with-from (uxid-ex v2.10.0), an
-// empty fixed field, which is still fixed bytes, and fixed bytes with From
-// under an unknown Size or Case, which the reference's order refuses for
-// the fixed bytes first.
+// Fixed bytes with From are refused (the corpus runner runs the corpus's
+// own case), also an empty fixed field, which is still fixed bytes, and
+// fixed bytes with From under an unknown Size or Case, which the
+// reference's order refuses for the fixed bytes first.
 //
 // sabotage: in Generate, move the Rand-with-From check below the Size and
 // Case checks; the unknown Size and unknown Case rows go red.
 func TestGenerateRandWithFrom(t *testing.T) {
 	cases := map[string]Options{
-		"invalid/generate-rand-with-from": {Prefix: "usr", From: new("alice@example.com"), Rand: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
-		"an empty fixed field":            {Prefix: "usr", From: new("alice@example.com"), Rand: []byte{}},
-		"an unknown Size":                 {Size: Size(5), From: new("a"), Rand: []byte{1}},
-		"an unknown Case":                 {Case: Case(2), From: new("a"), Rand: []byte{1}},
+		"a fixed field":        {Prefix: "cus", Size: SizeS, From: new("a"), Rand: []byte{1, 2}},
+		"an empty fixed field": {Prefix: "usr", From: new("alice@example.com"), Rand: []byte{}},
+		"an unknown Size":      {Size: Size(5), From: new("a"), Rand: []byte{1}},
+		"an unknown Case":      {Case: Case(2), From: new("a"), Rand: []byte{1}},
 	}
 	for name, opts := range cases {
 		got, err := Generate(opts)
