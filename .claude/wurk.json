@@ -1,0 +1,96 @@
+{
+  "wurk": 1,
+
+  "beads": {
+    "prefix": "uxgo",
+    "sync": "dolthub",
+    "topology": "beads",
+    "areas": {
+      "labels": [
+        "area:codec",
+        "area:monotonic",
+        "area:conformance",
+        "area:docs",
+        "area:build"
+      ],
+      "lands_alone": ["area:build"],
+      "always_batchable": ["upstream"]
+    }
+  },
+
+  "forge": {
+    "kind": "github",
+    "labels": {}
+  },
+
+  "gate": {
+    "full": ["mise", "run", "gate"],
+    "loop": ["mise", "run", "gate:loop"],
+    "build_paths": [
+      "doc.go",
+      "version.go",
+      "internal/",
+      "testdata/",
+      "scripts/",
+      "go.mod",
+      "go.sum",
+      "mise.toml",
+      ".golangci.yml"
+    ],
+    "also_gated_paths": ["conformance/"],
+    "moving_files": ["mise.toml", ".golangci.yml", "scripts/coverage-floor.sh"],
+    "sabotage": {
+      "test_roots": ["*_test.go"],
+      "test_pattern": "^func (Test|Fuzz)",
+      "exempt_prefixes": []
+    },
+    "project_level_skips": [],
+    "not_applicable_skips": []
+  },
+
+  "parallelism": {
+    "model": "worktree-per-issue",
+    "worktrees_dir": "../uxid-go-worktrees",
+    "trust": ["mise", "trust", "{path}"],
+    "warm_clone": [],
+    "warm": [["mise", "exec", "--", "go", "mod", "download"]],
+    "repair_when": "go.mod",
+    "repair": [["mise", "exec", "--", "go", "mod", "download"]],
+    "post_branch": []
+  },
+
+  "tmux": {
+    "session": "uxid-go",
+    "model": "opus"
+  },
+
+  "models": {
+    "direction": "fable"
+  },
+
+  "artifacts": {
+    "plans": "docs/plans",
+    "research": "docs/research",
+    "filename": "YYMMDD-[id-]kebab"
+  },
+
+  "commits": {
+    "style": "s-form",
+    "subject_under": 72,
+    "body_line_max": 72,
+    "total_lines_max": 40,
+    "trailer": {
+      "key": "Refs"
+    }
+  },
+
+  "changelog": {
+    "mode": "fragments",
+    "dir": "changelog.d"
+  },
+
+  "release": {
+    "kind": "go",
+    "version_file": "version.go"
+  }
+}
