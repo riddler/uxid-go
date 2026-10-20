@@ -48,17 +48,21 @@ const (
 // deterministic id reads neither the Reader nor the clock.
 //
 // The refusals, each returned unwrapped and matched with errors.Is:
-// ErrUnknownSize and ErrUnknownCase for a Size or Case outside its
-// constants; ErrRandWithFrom for fixed random bytes with From; and, for a
+// ErrRandWithFrom for fixed random bytes with From; ErrUnknownSize and
+// ErrUnknownCase for a Size or Case outside its constants; and, for a
 // time-based id, ErrTimeOutOfRange for a time outside the time field,
 // ErrNegativeRandSize and ErrRandSizeTooLarge for an explicit random width
 // below 0 or above 10 bytes, ErrRandWidthMismatch for fixed random bytes
 // of another width, and ErrCompactTimeOutOfRange for a compact time whose
-// first character would be the deterministic marker. A time-based request
-// with more than one fault is refused for the first in that order, which
-// is the reference's order for the corpus's names: the random width before
-// the compact-time guard.
+// first character would be the deterministic marker. A request with more
+// than one fault is refused for the first in that order, which is the
+// reference's order for the corpus's names: fixed random bytes with From
+// before anything else, and the random width before the compact-time
+// guard.
 func Generate(opts Options) (string, error) {
+	if opts.From != nil && opts.Rand != nil {
+		return "", ErrRandWithFrom
+	}
 	width, ok := opts.Size.randBytes(opts.CompactTime)
 	if !ok {
 		return "", ErrUnknownSize
@@ -77,9 +81,6 @@ func Generate(opts Options) (string, error) {
 
 	if opts.From != nil {
 		count := opts.Size.hashChars()
-		if opts.Rand != nil {
-			return "", ErrRandWithFrom
-		}
 		var id strings.Builder
 		id.Grow(len(opts.Prefix) + len(delimiter) + maxBodyLength)
 		writePrefix(&id, opts.Prefix, delimiter)

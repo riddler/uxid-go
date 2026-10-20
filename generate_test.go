@@ -451,8 +451,8 @@ func TestGenerateRefusesTheWidthBeforeTheCompactGuard(t *testing.T) {
 // An explicit width of 0 is no random field, in either time form, and
 // differs from an unset RandSize, which takes the size's width.
 //
-// sabotage: in Generate, apply RandSize only when *opts.RandSize > 0; the
-// compact row goes red.
+// sabotage: in Generate, apply RandSize only when *opts.RandSize > 0; both
+// rows go red.
 func TestGenerateExplicitRandSizeZero(t *testing.T) {
 	cases := map[string]Options{
 		"usr_01hf7yat00": {Prefix: "usr", Size: SizeXL, Time: corpusTime, RandSize: new(0)},

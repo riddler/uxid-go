@@ -54,6 +54,56 @@ func ExampleGenerate_deterministic() {
 	// Output: usr_zcvt7epac0t1ebcsjfyf7cwz25
 }
 
+// Decode reads an id back: its prefix, size, time form, and time. A
+// refusal is a *DecodeError, matched with errors.As; its text is the
+// corpus name of the reason.
+func ExampleDecode() {
+	decoded, err := uxid.Decode("cus_01hf7yat0004h1")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(decoded.Prefix, decoded.Size, decoded.Compact, decoded.Time.UnixMilli())
+
+	_, err = uxid.Decode("cus_01hf7yat000")
+	var decodeErr *uxid.DecodeError
+	fmt.Println(errors.As(err, &decodeErr), decodeErr.Reason == uxid.ReasonInvalidLength, err)
+	// Output:
+	// cus s false 1700000000000
+	// true true invalid_length
+}
+
+// A compact time carries only its low 40 bits; the clock in DecodeOptions
+// supplies the rest, so a test can fix it.
+func ExampleDecodeWith() {
+	decoded, err := uxid.DecodeWith("cus--hf7yat0004hm5", uxid.DecodeOptions{
+		Delimiter: "--",
+		Now:       time.UnixMilli(1_700_000_000_000),
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(decoded.Prefix, decoded.Size, decoded.Compact, decoded.Time.UnixMilli())
+	// Output: cus s true 1700000000000
+}
+
+func ExampleIsValid() {
+	fmt.Println(uxid.IsValid("cus_01hf7yat0004h1", "_", ""))
+	fmt.Println(uxid.IsValid("cus_01hf7yat0004h1", "_", "usr"))
+	fmt.Println(uxid.IsValid("cus_01hf7yat0004h12", "_", ""))
+	// Output:
+	// true
+	// false
+	// false
+}
+
+func ExampleIsDeterministic() {
+	fmt.Println(uxid.IsDeterministic("usr_zcvt7epac0t1ebcsjfyf7cwz25", "_"))
+	fmt.Println(uxid.IsDeterministic("usr_01hf7yat0004h1", "_"))
+	// Output:
+	// true
+	// false
+}
+
 func ExampleParseSize() {
 	size, err := uxid.ParseSize("medium")
 	if err != nil {
