@@ -1,0 +1,218 @@
+name: Release
+
+# Runs when a version tag is pushed, and asks the Go module proxy
+# (proxy.golang.org) for that version only when four things hold at the
+# tagged commit: it is on the default branch, the tag names the version that
+# `const Version` states in version.go there, the proxy does not already list
+# that version, and the full quality gate is green there. Nothing else
+# triggers it - no branch push, no pull request, no manual dispatch.
+#
+# A Go module has no registry upload: a version of this module is its tag,
+# and it exists from the moment the tag is pushed, before this workflow
+# starts. What this workflow adds is the proxy request. The proxy fetches a
+# version from this repository when someone first asks it for that version,
+# and keeps what it fetched for good; the request in the last steps
+# (`@v/<tag>.info`) is that first ask, made once the checks and the gate have
+# passed. pkg.go.dev reads its versions from the proxy.
+#
+# One job, `release` (contents: read, and no other permission; no id-token,
+# no secret, no environment), checking out the tagged commit (github.sha):
+#
+# - It checks that the tagged commit is on the default branch.
+# - It checks that the tag is vMAJOR.MINOR.PATCH and names the version in
+#   version.go, read as text by scripts/release-guard.sh (nothing is compiled
+#   for this check, so it runs before any toolchain is installed).
+# - It reads the proxy's list of the versions it holds for the module
+#   (`@v/list`), a request that names no version; a list that already holds
+#   the tag is reported and the run stops, and the version is not requested
+#   again. A list answer other than 200, 404 or 410 stops the run too.
+# - It installs the toolchain mise.toml pins and runs the full quality gate,
+#   exactly as ci.yml's gate job runs it, then checks the gate left the
+#   checkout clean.
+# - It requests `@v/<tag>.info` from the proxy, up to ten attempts thirty
+#   seconds apart, and passes once the proxy answers 200 naming the tag. After
+#   the tenth failed attempt the run fails with the last answer in the log.
+# - It prints the version's pkg.go.dev address.
+#
+# What a failure means. Every check above judges the tagged commit or the
+# proxy's answer; scripts/release-guard.sh holds the judgements, and the
+# full gate runs them against fixture values (scripts/release-guard-test.sh).
+# A failure in any step before the proxy request means this workflow did not
+# ask the proxy for the version. It does not unpublish anything: the tag is
+# already public, and anyone who asks the proxy for that version (with `go
+# get github.com/riddler/uxid-go@<tag>`, say) makes the proxy fetch it all
+# the same. A failure in the proxy request step does not prove the proxy
+# lacks the version: an attempt can time out or fail on the network while
+# the proxy's fetch goes ahead. A failure in the last step comes after the
+# proxy answered 200 naming the tag. A re-run once the proxy lists the
+# version stops at the list check ("already lists") and stays red, although
+# the version is on the proxy.
+# No step creates, moves or deletes a tag, and no step writes to the
+# repository.
+#
+# The manual act this workflow needs is a re-run from the run's page in the
+# Actions tab, for a run that failed for a reason outside the tagged commit:
+# a network error, the proxy answering the list check with a status other
+# than 200, 404 or 410, the proxy not answering the version request within
+# the ten attempts, or a gate step that failed on the runner rather than on
+# the code. A failure the tagged commit itself causes (it is not on the
+# default branch, the tag and version.go name different versions, the gate
+# is red) fails the same way on every re-run.
+#
+# This file records the release decision for this repository, which keeps
+# no decision records (CLAUDE.md, "Agent authority in this repo": the
+# "Release preps" paragraph and the paragraph after it, which says where a
+# release decision is recorded). This workflow is the only thing that asks
+# the proxy for a version: it runs on the push of the tag that names a
+# merged release prep. An agent or a session never asks the proxy for a
+# version by hand, and a failed run is re-run from its Actions page, never
+# worked round by hand.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# contents: read, every other permission none. Nothing here asks GitHub for
+# an OIDC token or reads a secret. The tag already exists when this runs, and
+# nothing here creates or pushes one.
+permissions:
+  contents: read
+
+# One run per tag, and a run in progress is never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, gate and ask the proxy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    steps:
+      # The tagged commit, by SHA. Full history: the ancestry check below
+      # walks it.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # The default branch is read from the push event itself, never written
+      # here, so a renamed default branch needs no edit to this file.
+      - name: Fetch the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test -n "$DEFAULT_BRANCH" || { echo "::error::the push event names no default branch" >&2; exit 1; }
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+
+      - name: Check the tagged commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse 'HEAD^{commit}')"
+          sh scripts/release-guard.sh on-branch "$commit" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          echo "${GITHUB_REF_NAME} is on ${commit}, which is on ${DEFAULT_BRANCH}"
+
+      # version.go is read as text, never compiled.
+      - name: Check the tag names the version in version.go
+        run: |
+          set -euo pipefail
+          version="$(sh scripts/release-guard.sh tag "$GITHUB_REF_NAME" version.go)"
+          echo "${GITHUB_REF_NAME} matches version.go Version ${version}"
+
+      # A version the proxy already lists is reported, never requested again.
+      # The list request names no version. The module path is read from
+      # go.mod, so the list read is the list of the module this run releases.
+      - name: Check the proxy does not already list this version
+        run: |
+          set -euo pipefail
+          module="$(sh scripts/release-guard.sh module go.mod)"
+          url="https://proxy.golang.org/${module}/@v/list"
+          body="${RUNNER_TEMP}/proxy-list"
+          status="$(curl -sS -o "$body" -w '%{http_code}' --max-time 60 "$url")" || status=000
+          echo "${url} answered ${status}"
+          sh scripts/release-guard.sh proxy-list "$status" "$GITHUB_REF_NAME" "$body"
+          echo "the proxy does not list ${GITHUB_REF_NAME} for ${module} yet"
+
+      # --- the toolchain and the full quality gate, exactly as ci.yml's gate
+      # job runs them.
+
+      # The toolchain comes from mise.toml, provisioned by mise itself: the Go
+      # release, golangci-lint and govulncheck, at the versions pinned there.
+      # No tool cache is restored: a release installs its tools fresh rather
+      # than from a cache another run wrote. A third-party action, pinned to a
+      # full commit SHA with its version in the trailing comment.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.8.2
+          cache: false
+
+      # The command is read out of .claude/wurk.json (gate.full), the gate an
+      # agent must have green before committing. It is read and executed
+      # inside the step rather than interpolated into `run:`, so a repository
+      # file never reaches the shell as expression text.
+      - name: Full quality gate
+        run: |
+          set -euo pipefail
+          mise exec -- go version
+          mapfile -t cmd < <(jq -er '.gate.full[]' .claude/wurk.json)
+          test "${#cmd[@]}" -gt 0 || { echo "::error::gate.full is empty" >&2; exit 1; }
+          echo "gate command (.claude/wurk.json gate.full): ${cmd[*]}"
+          "${cmd[@]}"
+
+      - name: Check the gate left the checkout clean
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "::error::the gate left changed or untracked files; the proxy is not asked for the version" >&2
+            exit 1
+          fi
+
+      # --- end of the gate.
+
+      # This request is what makes the proxy fetch the version from this
+      # repository. Ten attempts, thirty seconds apart, each bounded to sixty
+      # seconds; the step fails after the tenth.
+      - name: Ask the proxy for the version
+        run: |
+          set -euo pipefail
+          module="$(sh scripts/release-guard.sh module go.mod)"
+          url="https://proxy.golang.org/${module}/@v/${GITHUB_REF_NAME}.info"
+          body="${RUNNER_TEMP}/proxy-info"
+          attempts=10
+          for attempt in $(seq 1 "$attempts"); do
+            status="$(curl -sS -o "$body" -w '%{http_code}' --max-time 60 "$url")" || status=000
+            echo "attempt ${attempt} of ${attempts}: ${url} answered ${status}"
+            if GITHUB_ACTIONS=false sh scripts/release-guard.sh proxy-info "$status" "$GITHUB_REF_NAME" "$body"; then
+              cat "$body"
+              echo
+              echo "the proxy holds ${module} ${GITHUB_REF_NAME}"
+              exit 0
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then
+              sleep 30
+            fi
+          done
+          if [ -s "$body" ]; then
+            echo "last answer:"
+            cat "$body"
+            echo
+          fi
+          echo "::error::the proxy did not answer 200 naming ${GITHUB_REF_NAME} within ${attempts} attempts; re-run this workflow from its Actions page" >&2
+          exit 1
+
+      # pkg.go.dev reads new versions from the proxy on its own schedule, so
+      # its page may lag the proxy by some minutes.
+      - name: Print the version's pkg.go.dev address
+        run: |
+          set -euo pipefail
+          module="$(sh scripts/release-guard.sh module go.mod)"
+          echo "https://pkg.go.dev/${module}@${GITHUB_REF_NAME}"

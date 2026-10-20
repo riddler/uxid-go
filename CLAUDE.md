@@ -96,11 +96,12 @@ merged prep commit and is never moved or deleted afterwards. The install line
 major version 1 leaves it as it is; a major version 2 or later changes the
 module path itself (a `/v2` suffix) and is a decision of its own. An agent or
 a session never asks the proxy for a version by hand: the release workflow
-(`.github/workflows/release.yml`) runs on that tag push, checks the tag
-against `Version`, runs the full gate and asks proxy.golang.org for the
-version, and a failed workflow is re-run from its Actions page, never worked
-round by hand. That workflow arrives with a later change; until it is on
-`main`, no version of this module is tagged. Merging the prep follows this
+(`.github/workflows/release.yml`) runs on that tag push, checks that the
+tagged commit is on the default branch, that the tag names `Version` and
+that the proxy does not already list the version, runs the full gate and
+asks proxy.golang.org for the version (its header says what each step does
+and what a failure at each one means), and a failed workflow is re-run from
+its Actions page, never worked round by hand. Merging the prep follows this
 file's merge row, and nothing else this file reserves for the operator
 changes. A prep is cut only on a green full gate, which includes the
 conformance corpus check.
@@ -143,10 +144,13 @@ deterministic generation (`Generate`, its `Options` and its sentinel
 errors), monotonic generation (`NewMonotonic`, `Monotonic` and `Draws`),
 decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
 `DecodeError`) and the validity checks (`IsValid`, `IsDeterministic`), the
-gate tasks and the vendored conformance corpus with its runner.
-The rest of the library and CI arrive with later changes; until they do,
-the sentences in this file about the 1.0.0 library and its workflows
-describe the target, not the current tree.
+gate tasks, the vendored conformance corpus with its runner, CI
+(`.github/workflows/ci.yml`) and the release workflow
+(`.github/workflows/release.yml`). The README in its 1.0.0 shape and the
+1.0.0 release prep arrive with later changes; until the prep lands,
+`Version` states 0.0.1, no version of the module is tagged, and the
+sentences in this file about version 1.0.0 describe the target, not the
+current tree.
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
   installed with `go get github.com/riddler/uxid-go`. The 2020 `go.mod`
@@ -161,11 +165,16 @@ describe the target, not the current tree.
   never skipped or worked round here. An
   answer the corpus does not fix follows uxid-ex's spec at that tag.
 
-`README.md` is the user reference; `CHANGELOG.md` records each release.
+`README.md` is the user reference; `CHANGELOG.md` records each release,
+assembled at the release prep from the fragments in `changelog.d/` (its
+`README.md` states the rule).
 
 ## Build & Test
 
-The gate tasks live in `mise.toml`.
+The gate tasks live in `mise.toml`, and CI runs the same full gate on every
+push to `main` and every pull request (`.github/workflows/ci.yml`), beside
+`go test -race ./...` on the oldest Go `go.mod` declares and on the Go
+`mise.toml` pins.
 
 ```bash
 mise install            # the Go toolchain and the tools mise.toml pins
@@ -182,8 +191,10 @@ mise run gate           # full gate
 - The full gate checks that `gofmt -l` prints nothing, runs `go vet` and golangci-lint, runs
   `go test -race` with a coverage profile that `scripts/coverage-floor.sh`
   fails under 90 percent of statements (a profile with no statements passes,
-  and a missing or empty profile fails), and runs govulncheck (which reaches the
-  network for the vulnerability database). The `go test` run includes the
+  and a missing or empty profile fails), runs govulncheck (which reaches the
+  network for the vulnerability database), and runs the release workflow's
+  checks (`scripts/release-guard.sh`) against fixture values
+  (`scripts/release-guard-test.sh`). The `go test` run includes the
   conformance corpus check: `corpus_test.go` runs every case of the
   vendored corpus, and `corpus_hash_test.go` recomputes its hash and case
   counts.
