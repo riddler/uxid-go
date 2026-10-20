@@ -357,9 +357,9 @@ func TestMonotonicCallTimeRange(t *testing.T) {
 }
 
 // A compact time whose first character would be the marker is refused,
-// both as the call's time and when an overflow moves the id onto it; the
-// overflow refusal repeats while the clock stays at or before the last
-// id's time, and the generator keeps the last id it gave.
+// both as the call's time and when an overflow moves the id onto it. From
+// 255 in a one-byte field every step overflows, so here the refusal
+// repeats, and the generator keeps the last id it gave.
 //
 // sabotage: in NextWith, run the compact guard on the call's time rather
 // than the id's (millis in place of at); the overflow row goes red.
@@ -511,6 +511,33 @@ func TestMonotonicCaseAndDelimiter(t *testing.T) {
 	got, err := m.NextWith(&replayDraws{seeds: []uint64{0xffff}}, time.Time{})
 	if want := "Usr--01HF7YAT00ZZZ1"; err != nil || got != want {
 		t.Fatalf("%q, %v; want %q", got, err, want)
+	}
+}
+
+// A refusal after an overflow onto the compact guard leaves the last id's
+// time and value as they were, so a later call whose step does not
+// overflow returns an id in the last id's millisecond, after the last id.
+//
+// sabotage: in NextWith, on an overflow store the next millisecond and the
+// new seed as the last id's before the compact guard runs; the call with
+// the smaller step overflows again and the test goes red.
+func TestMonotonicRefusalKeepsTheLastId(t *testing.T) {
+	m, err := NewMonotonic(Options{Prefix: "usr", Size: SizeS, CompactTime: true})
+	if err != nil {
+		t.Fatalf("NewMonotonic: %v", err)
+	}
+	before := time.UnixMilli(31<<35 - 1)
+	draws := &replayDraws{seeds: []uint64{1<<24 - 100, 0}, steps: []uint64{200, 50}}
+	first, err := m.NextWith(draws, before)
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	if got, err := m.NextWith(draws, before); err != ErrCompactTimeOutOfRange {
+		t.Fatalf("overflow onto the guard: %q, %v; want %v", got, err, ErrCompactTimeOutOfRange)
+	}
+	got, err := m.NextWith(draws, before)
+	if want := "usr_" + first[4:12] + "zzzwe"; err != nil || got != want || got <= first {
+		t.Fatalf("smaller step: %q, %v; want %q after %q", got, err, want, first)
 	}
 }
 

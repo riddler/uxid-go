@@ -180,13 +180,18 @@ func (m *Monotonic) Next() (string, error) {
 // above 2^48 - 1 ms, or for a step that overflows the field in millisecond
 // 2^48 - 1, the last a time field holds; and ErrCompactTimeOutOfRange for
 // a compact time the id would carry whose first character would be the
-// deterministic marker. When that time is the millisecond after the last
-// id's, reached by an overflow, the refusal repeats while now stays at or
-// before the last id's time. A failed draw returns an error that wraps the
+// deterministic marker, also when that time is the millisecond after the
+// last id's, reached by an overflow. A failed draw returns an error that wraps the
 // error of draws (for the default draws, the byte source's error, as
 // Generate wraps it), and a step outside its range returns an error of
-// its own; neither is a sentinel error. A call that returns an error
-// leaves the generator as it was.
+// its own; neither is a sentinel error.
+//
+// A call that returns an error leaves the generator as it was: the last
+// id's time and random value stay what they were, and the next call
+// starts from them. So after an overflow onto a refused compact time, a
+// later call at or before the last id's time draws a new step: it is
+// refused again if that step also overflows the field, and with a smaller
+// step that does not, it returns an id in the last id's millisecond.
 func (m *Monotonic) NextWith(draws Draws, now time.Time) (string, error) {
 	if draws == nil {
 		draws = readerDraws{reader: m.reader}
