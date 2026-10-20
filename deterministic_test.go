@@ -143,15 +143,19 @@ func TestGenerateDeterministicDelimiter(t *testing.T) {
 	}
 }
 
-// The corpus case invalid/generate-rand-with-from (uxid-ex v2.10.0), and an
-// empty fixed field, which is still fixed bytes.
+// The corpus case invalid/generate-rand-with-from (uxid-ex v2.10.0), an
+// empty fixed field, which is still fixed bytes, and fixed bytes with From
+// under an unknown Size or Case, which the reference's order refuses for
+// the fixed bytes first.
 //
-// sabotage: in Generate's From branch, drop the Rand check; both rows go
-// red.
+// sabotage: in Generate, move the Rand-with-From check below the Size and
+// Case checks; the unknown Size and unknown Case rows go red.
 func TestGenerateRandWithFrom(t *testing.T) {
 	cases := map[string]Options{
 		"invalid/generate-rand-with-from": {Prefix: "usr", From: new("alice@example.com"), Rand: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
 		"an empty fixed field":            {Prefix: "usr", From: new("alice@example.com"), Rand: []byte{}},
+		"an unknown Size":                 {Size: Size(5), From: new("a"), Rand: []byte{1}},
+		"an unknown Case":                 {Case: Case(2), From: new("a"), Rand: []byte{1}},
 	}
 	for name, opts := range cases {
 		got, err := Generate(opts)
