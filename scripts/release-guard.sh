@@ -17,10 +17,11 @@
 #       The commit is an ancestor of (or is) the branch ref, in the git
 #       repository of the current directory.
 #   release-guard.sh proxy-list <http-status> <tag> <body-file>
-#       Judges the proxy's answer to `@v/list`: 404 or 410 (the proxy knows
-#       no version of the module) and a 200 list without the tag pass; a 200
-#       list holding the tag refuses (the version is already there); any
-#       other status refuses.
+#       Judges the proxy's answer to `@v/list`. 404 or 410 (the proxy knows
+#       no version of the module) and a 200 list without the tag pass and
+#       print `absent`; a 200 list holding the tag passes too and prints
+#       `listed` (the version is already there, which is reported, not
+#       refused); any other status refuses.
 #   release-guard.sh proxy-info <http-status> <tag> <body-file>
 #       Judges the proxy's answer to `@v/<tag>.info`: passes only on a 200
 #       whose JSON names the tag as its Version.
@@ -89,11 +90,13 @@ cmd_proxy_list() {
     200)
       [ -f "$body" ] || fail "no body file $body for the proxy's 200 answer"
       if grep -Fxq -- "$tag" "$body"; then
-        fail "the proxy already lists $tag; reported, and not requested again"
+        echo listed
+        return 0
       fi
       ;;
     *) fail "the proxy answered $status to the version list" ;;
   esac
+  echo absent
 }
 
 cmd_proxy_info() {

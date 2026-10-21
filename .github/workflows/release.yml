@@ -1,10 +1,10 @@
 name: Release
 
 # Runs when a version tag is pushed, and asks the Go module proxy
-# (proxy.golang.org) for that version only when four things hold at the
+# (proxy.golang.org) for that version only when three things hold at the
 # tagged commit: it is on the default branch, the tag names the version that
-# `const Version` states in version.go there, the proxy does not already list
-# that version, and the full quality gate is green there. Nothing else
+# `const Version` states in version.go there, and the full quality gate is
+# green there. Nothing else
 # triggers it - no branch push, no pull request, no manual dispatch.
 #
 # A Go module has no registry upload: a version of this module is its tag,
@@ -23,9 +23,11 @@ name: Release
 #   version.go, read as text by scripts/release-guard.sh (nothing is compiled
 #   for this check, so it runs before any toolchain is installed).
 # - It reads the proxy's list of the versions it holds for the module
-#   (`@v/list`), a request that names no version; a list that already holds
-#   the tag is reported and the run stops, and the version is not requested
-#   again. A list answer other than 200, 404 or 410 stops the run too.
+#   (`@v/list`), a request that names no version, and reports whether that
+#   list already holds the tag. A list that holds it does not stop the run:
+#   the later steps run as they would otherwise, and the version request
+#   then asks for a version the proxy already holds, which changes nothing
+#   on the proxy. A list answer other than 200, 404 or 410 stops the run.
 # - It installs the toolchain mise.toml pins and runs the full quality gate,
 #   exactly as ci.yml's gate job runs it, then checks the gate left the
 #   checkout clean.
@@ -45,8 +47,9 @@ name: Release
 # lacks the version: an attempt can time out or fail on the network while
 # the proxy's fetch goes ahead. A failure in the last step comes after the
 # proxy answered 200 naming the tag. A re-run once the proxy lists the
-# version stops at the list check ("already lists") and stays red, although
-# the version is on the proxy.
+# version reports that at the list check and runs every later step again,
+# so it goes green once every step passes, the proxy's 200 naming the tag
+# included.
 # No step creates, moves or deletes a tag, and no step writes to the
 # repository.
 #
@@ -127,10 +130,11 @@ jobs:
           version="$(sh scripts/release-guard.sh tag "$GITHUB_REF_NAME" version.go)"
           echo "${GITHUB_REF_NAME} matches version.go Version ${version}"
 
-      # A version the proxy already lists is reported, never requested again.
-      # The list request names no version. The module path is read from
-      # go.mod, so the list read is the list of the module this run releases.
-      - name: Check the proxy does not already list this version
+      # Reports whether the proxy already lists the version; a listed version
+      # does not stop the run. The list request names no version. The module
+      # path is read from go.mod, so the list read is the list of the module
+      # this run releases.
+      - name: Check what the proxy already lists
         run: |
           set -euo pipefail
           module="$(sh scripts/release-guard.sh module go.mod)"
@@ -138,8 +142,12 @@ jobs:
           body="${RUNNER_TEMP}/proxy-list"
           status="$(curl -sS -o "$body" -w '%{http_code}' --max-time 60 "$url")" || status=000
           echo "${url} answered ${status}"
-          sh scripts/release-guard.sh proxy-list "$status" "$GITHUB_REF_NAME" "$body"
-          echo "the proxy does not list ${GITHUB_REF_NAME} for ${module} yet"
+          listed="$(sh scripts/release-guard.sh proxy-list "$status" "$GITHUB_REF_NAME" "$body")"
+          if [ "$listed" = "listed" ]; then
+            echo "::notice::the proxy already lists ${GITHUB_REF_NAME} for ${module}; the run goes on, and the version request asks for a version the proxy holds"
+          else
+            echo "the proxy does not list ${GITHUB_REF_NAME} for ${module} yet"
+          fi
 
       # --- the toolchain and the full quality gate, exactly as ci.yml's gate
       # job runs them.

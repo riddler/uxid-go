@@ -97,11 +97,13 @@ major version 1 leaves it as it is; a major version 2 or later changes the
 module path itself (a `/v2` suffix) and is a decision of its own. An agent or
 a session never asks the proxy for a version by hand: the release workflow
 (`.github/workflows/release.yml`) runs on that tag push, checks that the
-tagged commit is on the default branch, that the tag names `Version` and
-that the proxy does not already list the version, runs the full gate and
-asks proxy.golang.org for the version (its header says what each step does
-and what a failure at each one means), and a failed workflow is re-run from
-its Actions page, never worked round by hand. Merging the prep follows this
+tagged commit is on the default branch and that the tag names `Version`,
+reports whether the proxy already lists the version (a listed version does
+not stop the run), runs the full gate and asks proxy.golang.org for the
+version (its header says what each step does and what a failure at each
+one means), and a failed workflow is re-run from its Actions page, never
+worked round by hand; a re-run after the proxy holds the version runs every
+step again and goes green once they pass. Merging the prep follows this
 file's merge row, and nothing else this file reserves for the operator
 changes. A prep is cut only on a green full gate, which includes the
 conformance corpus check.
