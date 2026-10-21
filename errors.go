@@ -39,9 +39,14 @@ var (
 // The refusals of this package's own, which the wire format's closed set
 // does not name. Each error's text is a snake_case name of the same shape.
 var (
-	// ErrTimeOutOfRange refuses a time (Options.Time, or the system clock)
-	// before the Unix epoch or more than 2^48 - 1 milliseconds after it,
-	// the latest a time field holds.
+	// ErrTimeOutOfRange refuses a time before the Unix epoch or more than
+	// 2^48 - 1 milliseconds after it, the latest a time field holds. The
+	// time is Options.Time or the system clock for Generate, the Time of
+	// the Options NewMonotonic takes, or the time of a call to
+	// Monotonic.Next or Monotonic.NextWith (the system clock when none is
+	// fixed). A Monotonic also returns it when a step overflows the random
+	// field in millisecond 2^48 - 1, which has no next millisecond to
+	// move to.
 	ErrTimeOutOfRange = errors.New("time_out_of_range")
 
 	// ErrNegativeRandSize refuses an explicit random width

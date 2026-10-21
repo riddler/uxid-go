@@ -4,10 +4,83 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"strings"
+	"testing"
 	"time"
 
 	"github.com/riddler/uxid-go"
 )
+
+// The README's basic usage: a prefixed id, a reproduced vector, a
+// deterministic id, Decode and the checks, and a monotonic generator. A test
+// keeps this body identical to the README block.
+func Example() {
+	// A prefix names the resource; the body is a time and randomness.
+	id, err := uxid.Generate(uxid.Options{Prefix: "usr"})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(strings.HasPrefix(id, "usr_"), len(id)) // true 30
+
+	// A size shrinks the random part for low-cardinality resources, and a fixed
+	// time and fixed random bytes reproduce an id exactly. Fixed bytes are for
+	// test vectors only, never a source of randomness.
+	short, err := uxid.Generate(uxid.Options{
+		Prefix: "cus",
+		Size:   uxid.SizeS,
+		Time:   time.UnixMilli(1_700_000_000_000),
+		Rand:   []byte{0x01, 0x23},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(short) // cus_01hf7yat0004h1
+
+	// Deterministic: the same prefix and input give the same id, every time.
+	named, err := uxid.Generate(uxid.Options{Prefix: "usr", From: new("alice@example.com")})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(named, uxid.IsDeterministic(named, "_")) // usr_zcvt7epac0t1ebcsjfyf7cwz25 true
+
+	// Read an id back. A malformed id is a *DecodeError, matched with errors.As.
+	decoded, err := uxid.Decode(short)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(decoded.Prefix, decoded.Size, decoded.Time.UnixMilli())           // cus s 1700000000000
+	fmt.Println(uxid.IsValid(short, "_", "cus"), uxid.IsValid(short, "_", "usr")) // true false
+	_, err = uxid.Decode("cus_")
+	fmt.Println(err) // empty
+
+	// Monotonic: ids from one generator increase strictly, also within one
+	// millisecond. You hold the generator; the module keeps no global state.
+	ids, err := uxid.NewMonotonic(uxid.Options{Prefix: "usr", Size: uxid.SizeM})
+	if err != nil {
+		panic(err)
+	}
+	first, err := ids.Next()
+	if err != nil {
+		panic(err)
+	}
+	second, err := ids.Next()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(first < second) // true
+	// Output:
+	// true 30
+	// cus_01hf7yat0004h1
+	// usr_zcvt7epac0t1ebcsjfyf7cwz25 true
+	// cus s 1700000000000
+	// true false
+	// empty
+	// true
+}
 
 // An id with the defaults but a prefix: size xl, standard time, lower case,
 // the current time and random bytes from crypto/rand.Reader.
@@ -165,4 +238,57 @@ func ExampleParseSize() {
 	}
 	fmt.Println(size)
 	// Output: m
+}
+
+// The README's basic-usage block and Example are one text: the block is the
+// body of Example, less its Output comment, with one tab of indentation
+// removed.
+//
+// sabotage: change a character in either the README block or Example's body and this test goes red.
+func TestReadmeBlockIsExample(t *testing.T) {
+	source, err := os.ReadFile("example_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), "example_test.go", source, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture string
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "Example" {
+			continue
+		}
+		// Positions are 1-based offsets into the file; the body is the text
+		// between the braces.
+		fixture = string(source[fn.Body.Lbrace : fn.Body.Rbrace-1])
+	}
+	if fixture == "" {
+		t.Fatal("no func Example found")
+	}
+	body, _, found := strings.Cut(fixture, "\n\t// Output:")
+	if !found {
+		t.Fatal("Example has no Output comment")
+	}
+	var want strings.Builder
+	for _, line := range strings.SplitAfter(strings.TrimPrefix(body, "\n"), "\n") {
+		want.WriteString(strings.TrimPrefix(line, "\t"))
+	}
+
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rest, found := strings.Cut(string(readme), "```go\n")
+	if !found {
+		t.Fatal("README has no go block")
+	}
+	block, _, found := strings.Cut(rest, "```")
+	if !found {
+		t.Fatal("README's go block does not close")
+	}
+	if got := strings.TrimSuffix(block, "\n"); got != strings.TrimSuffix(want.String(), "\n") {
+		t.Errorf("README block differs from Example's body\nREADME:\n%s\nExample:\n%s", got, want.String())
+	}
 }

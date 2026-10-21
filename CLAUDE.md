@@ -147,12 +147,12 @@ errors), monotonic generation (`NewMonotonic`, `Monotonic` and `Draws`),
 decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
 `DecodeError`) and the validity checks (`IsValid`, `IsDeterministic`), the
 gate tasks, the vendored conformance corpus with its runner, CI
-(`.github/workflows/ci.yml`) and the release workflow
-(`.github/workflows/release.yml`). The README in its 1.0.0 shape and the
-1.0.0 release prep arrive with later changes; until the prep lands,
-`Version` states 0.0.1, no version of the module is tagged, and the
-sentences in this file about version 1.0.0 describe the target, not the
-current tree.
+(`.github/workflows/ci.yml`), the release workflow
+(`.github/workflows/release.yml`), the README and `docs/wire-format.md`, a
+pointer to the reference spec. The 1.0.0 release prep arrives with a later
+change; until the prep lands, `Version` states 0.0.1, no version of the
+module is tagged, and the sentences in this file about version 1.0.0
+describe the target, not the current tree.
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
   installed with `go get github.com/riddler/uxid-go`. The 2020 `go.mod`
@@ -170,6 +170,9 @@ current tree.
 `README.md` is the user reference; `CHANGELOG.md` records each release,
 assembled at the release prep from the fragments in `changelog.d/` (its
 `README.md` states the rule).
+The README's basic-usage block is the body of `Example` in
+`example_test.go` less its `// Output:` comment, and
+`TestReadmeBlockIsExample` fails when the two differ.
 
 ## Build & Test
 
