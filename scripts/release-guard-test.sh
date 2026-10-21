@@ -102,7 +102,10 @@ expect pass "list unknown to the proxy (404)" sh "$guard" proxy-list 404 v1.2.3 
 expect pass "list gone from the proxy (410)" sh "$guard" proxy-list 410 v1.2.3 "$tmp/list-empty"
 expect pass "empty list" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-empty"
 expect pass "list of other versions only" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-other"
-expect refuse "list already holding the tag" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-with"
+expect pass "list already holding the tag" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-with"
+expect_out "list already holding the tag prints listed" "listed" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-with"
+expect_out "list of other versions prints absent" "absent" sh "$guard" proxy-list 200 v1.2.3 "$tmp/list-other"
+expect_out "list unknown to the proxy prints absent" "absent" sh "$guard" proxy-list 404 v1.2.3 "$tmp/list-empty"
 expect refuse "list answered 500" sh "$guard" proxy-list 500 v1.2.3 "$tmp/list-empty"
 expect refuse "list request that never answered (000)" sh "$guard" proxy-list 000 v1.2.3 "$tmp/list-empty"
 expect refuse "list 200 with no body file" sh "$guard" proxy-list 200 v1.2.3 "$tmp/absent-list"
@@ -117,6 +120,7 @@ expect pass "info naming the tag" sh "$guard" proxy-info 200 v1.2.3 "$tmp/info-o
 expect pass "info with whitespace" sh "$guard" proxy-info 200 v1.2.3 "$tmp/info-spaced"
 expect refuse "info naming another version" sh "$guard" proxy-info 200 v1.2.3 "$tmp/info-other"
 expect refuse "info answered 404" sh "$guard" proxy-info 404 v1.2.3 "$tmp/info-notfound"
+expect refuse "info answered 404 with a body naming the tag" sh "$guard" proxy-info 404 v1.2.3 "$tmp/info-ok"
 expect refuse "info 200 with no body file" sh "$guard" proxy-info 200 v1.2.3 "$tmp/absent-info"
 
 # --- usage.
