@@ -1,4 +1,4 @@
 package uxid
 
 // Version is the version of this module.
-const Version = "0.0.1"
+const Version = "1.0.0"

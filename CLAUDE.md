@@ -133,14 +133,14 @@ Also avoid `bd edit`, which opens `$EDITOR` and blocks. Use
 
 ## What this project is
 
-`uxid` for Go. Version 1.0.0, the module this repository is being rewritten
-into, makes prefixed, K-sortable, Stripe-style identifiers a person can read,
-copy and route back to their resource, wire-compatible with the Elixir
-reference `uxid` and checked against its conformance corpus. It covers
+`uxid` for Go. Version 1.0.0, the module this repository holds, makes
+prefixed, K-sortable, Stripe-style identifiers a person can read, copy and
+route back to their resource, wire-compatible with the Elixir reference
+`uxid` and checked against its conformance corpus. It covers
 generation (random, deterministic and monotonic), decoding and the validity
 checks; it uses the standard library only, takes its random bytes from
 `crypto/rand` by default, and builds on Go 1.26 or later. The 2020 code
-that was on `main` is gone; the tree holds the rewrite so far: the module,
+that was on `main` is gone; the tree holds the rewrite: the module,
 the `uxid` package with its `Version` constant, time-based and
 deterministic generation (`Generate`, its `Options` and its sentinel
 errors), monotonic generation (`NewMonotonic`, `Monotonic` and `Draws`),
@@ -149,10 +149,9 @@ decoding (`Decode`, `DecodeWith`, `DecodeOptions`, `Decoded` and
 gate tasks, the vendored conformance corpus with its runner, CI
 (`.github/workflows/ci.yml`), the release workflow
 (`.github/workflows/release.yml`), the README and `docs/wire-format.md`, a
-pointer to the reference spec. The 1.0.0 release prep arrives with a later
-change; until the prep lands, `Version` states 0.0.1, no version of the
-module is tagged, and the sentences in this file about version 1.0.0
-describe the target, not the current tree.
+pointer to the reference spec. `Version` states 1.0.0; the version exists
+once the release prep is merged and the tag `v1.0.0` is pushed at the merged
+commit (the Release preps paragraph above).
 
 - **The module is `github.com/riddler/uxid-go`, package `uxid`.** It is
   installed with `go get github.com/riddler/uxid-go`. The 2020 `go.mod`
